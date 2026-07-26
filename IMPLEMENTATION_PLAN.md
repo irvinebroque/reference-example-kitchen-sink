@@ -13,7 +13,7 @@ flowchart LR
     App -->|"HMAC-keyed GET"| WC["Workers Cache"]
     WC --> Evaluator["Evaluator Worker"]
     Evaluator --> VC["Volatile Cache\nraw config specs"]
-    Evaluator --> SDK["Official StatsigServerlessClient\none per generation"]
+    Evaluator --> SDK["Official StatsigServerlessClient\none per config specs time value"]
     SDK --> Bootstrap["Official initialize response"]
 ```
 
@@ -35,17 +35,18 @@ The evaluator imports `StatsigServerlessClient` from the root
 `@statsig/serverless-client` package. It does not use the Cloudflare wrapper,
 `handleWithStatsig`, `StatsigCloudflareClient.initializeFromKV()`, or KV.
 
-The ruleset repository:
+The config specs repository:
 
 1. Fetches `download_config_specs` with the server secret.
 2. Stores `{ rawJson, expiresAt }` in the Volatile Cache binding.
-3. Reads the config generation from the top-level `time` field.
-4. Creates one isolate-local `StatsigServerlessClient` for that generation.
+3. Reads the config specs time from the top-level `time` field.
+4. Creates one isolate-local `StatsigServerlessClient` for that config specs
+   time.
 5. Calls the public data adapter's `setData(rawJson)` and `initializeSync()`.
-6. Retains the initialized client, generation, and expiry, but not `rawJson`, in
-   the runtime snapshot.
+6. Retains the initialized client, config specs time, and expiry, but not
+   `rawJson`, in the runtime snapshot.
 7. Reuses the client until the absolute cached expiry.
-8. Replaces the client when the generation changes.
+8. Replaces the client when the config specs time changes.
 9. Falls back to the last-known-good client when a TTL reload fails.
 
 Evaluation calls:
@@ -60,16 +61,16 @@ client.getClientInitializeResponse(user, {
 The result is passed through a permissive wire-contract validator that
 preserves official response fields and is returned to the application Worker.
 
-## Ruleset expiry and invalidation
+## Config specs expiry and invalidation
 
 Normal freshness is lazy TTL expiry. There is no periodic refresh cron and no
 endpoint that claims to refresh while serving an older cached value.
 
 `POST /admin/invalidate` requires `INVALIDATION_SECRET` and performs two
-repository invalidations: it deletes the Volatile Cache ruleset key and clears
-the isolate-local snapshot. The next evaluator
+repository invalidations: it deletes the Volatile Cache config specs key and
+clears the isolate-local snapshot. The next evaluator
 invocation after the per-user Workers Cache entry expires downloads and
-initializes the current ruleset. Bootstrap entries continue to obey their
+initializes the current config specs. Bootstrap entries continue to obey their
 declared Workers Cache TTL and stale window.
 
 ## Browser integration
@@ -133,7 +134,7 @@ The application Worker and evaluator Worker use the same `APP_ID` and
 
 The Volatile Cache binding remains experimental and is configured with a
 64 MiB maximum value and 128 MiB total capacity for the representative 30 MB
-ruleset. Workers KV is intentionally not used because its documented value
+config specs. Workers KV is intentionally not used because its documented value
 limit is 25 MiB. `package.json` overrides the Vite plugin's Miniflare dependency
 to the same workers-sdk PR build as Wrangler so the binding is present during
 multi-Worker Vite development.
@@ -151,6 +152,6 @@ npx wrangler deploy --dry-run --config wrangler.statsig.jsonc
 ```
 
 Tests cover official server-side evaluation, browser bootstrap initialization,
-absolute TTL behavior, generation replacement, stale fallback, explicit
+absolute TTL behavior, config specs replacement, stale fallback, explicit
 invalidation, HMAC cache keys, the pinned NextAuth bridge contract, multiple
 `Set-Cookie` headers, and preservation of incremental response streaming.

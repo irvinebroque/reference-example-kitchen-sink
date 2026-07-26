@@ -4,7 +4,7 @@ import { performance } from 'node:perf_hooks';
 
 const filename = process.argv[2];
 if (!filename) {
-	console.error('Usage: npm run benchmark:ruleset -- /path/to/ruleset.json');
+	console.error('Usage: npm run benchmark:config-specs -- /path/to/config-specs.json');
 	process.exit(1);
 }
 

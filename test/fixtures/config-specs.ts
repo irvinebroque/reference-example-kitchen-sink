@@ -1,7 +1,7 @@
 import { StatsigServerlessClient } from '@statsig/serverless-client';
 import type { TargetingUser } from '../../shared/statsig-contract';
 
-export const rulesetFixture = {
+export const configSpecsFixture = {
 	time: 1_725_000_000_000,
 	has_updates: true,
 	feature_gates: [
@@ -113,7 +113,7 @@ export function createOfficialBootstrap(user: TargetingUser, clientKey = 'client
 		loggingEnabled: 'disabled',
 		networkConfig: { preventAllNetworkTraffic: true },
 	});
-	client.dataAdapter.setData(JSON.stringify(rulesetFixture));
+	client.dataAdapter.setData(JSON.stringify(configSpecsFixture));
 	client.initializeSync();
 	const bootstrap = client.getClientInitializeResponse(user, {
 		clientSDKKey: clientKey,

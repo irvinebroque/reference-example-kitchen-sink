@@ -5,7 +5,7 @@ import {
 } from '../../shared/statsig-contract';
 import { verifyUserCacheKey } from '../../shared/user-cache-key';
 import { noStoreJson, positiveNumberSetting } from './responses';
-import type { RulesetRepository } from './ruleset-cache';
+import type { ConfigSpecsRepository } from './config-specs-repository';
 
 interface EvaluationRoute {
 	applicationId: string;
@@ -40,7 +40,11 @@ async function readVerifiedUser(request: Request, route: EvaluationRoute, hmacSe
 	return user;
 }
 
-export async function handleEvaluationRequest(request: Request, env: StatsigEnv, repository: RulesetRepository): Promise<Response> {
+export async function handleEvaluationRequest(
+	request: Request,
+	env: StatsigEnv,
+	configSpecsRepository: ConfigSpecsRepository,
+): Promise<Response> {
 	const startedAt = performance.now();
 	if (request.method !== 'GET' && request.method !== 'HEAD') {
 		return noStoreJson({ error: 'method_not_allowed' }, { status: 405 });
@@ -56,7 +60,7 @@ export async function handleEvaluationRequest(request: Request, env: StatsigEnv,
 	if (user instanceof Response) return user;
 
 	try {
-		const snapshot = await repository.get();
+		const snapshot = await configSpecsRepository.get();
 		const initializeResponse = snapshot.client.getClientInitializeResponse(user, {
 			clientSDKKey: env.STATSIG_CLIENT_KEY,
 			hash: 'none',
@@ -69,8 +73,8 @@ export async function handleEvaluationRequest(request: Request, env: StatsigEnv,
 			bootstrap: initializeResponse,
 			diagnostics: {
 				evaluatorVersion: env.EVALUATOR_VERSION,
-				rulesetGeneration: snapshot.generation,
-				rulesetStale: snapshot.stale,
+				configSpecsTime: snapshot.time,
+				configSpecsStale: snapshot.stale,
 				evaluatorDurationMs: Math.round(performance.now() - startedAt),
 				payloadBytes: bootstrapBytes,
 			},
@@ -81,7 +85,7 @@ export async function handleEvaluationRequest(request: Request, env: StatsigEnv,
 				event: 'statsig_evaluation',
 				applicationId: route.applicationId,
 				userKeyPrefix: route.cacheKey.slice(0, 11),
-				rulesetGeneration: snapshot.generation,
+				configSpecsTime: snapshot.time,
 				payloadBytes: new TextEncoder().encode(body).byteLength,
 				durationMs: Math.round(performance.now() - startedAt),
 			}),
@@ -92,7 +96,7 @@ export async function handleEvaluationRequest(request: Request, env: StatsigEnv,
 				'Cache-Tag': `statsig-app-${route.applicationId}`,
 				'Content-Type': 'application/json; charset=utf-8',
 				'X-Evaluator-Version': env.EVALUATOR_VERSION,
-				'X-Ruleset-Generation': snapshot.generation,
+				'X-Statsig-Config-Specs-Time': snapshot.time,
 			},
 		});
 	} catch (error) {

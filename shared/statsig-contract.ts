@@ -33,8 +33,8 @@ export const evaluatorServiceResponseSchema = z.object({
 	bootstrap: bootstrapResponseSchema,
 	diagnostics: z.object({
 		evaluatorVersion: z.string(),
-		rulesetGeneration: z.string(),
-		rulesetStale: z.boolean(),
+		configSpecsTime: z.string(),
+		configSpecsStale: z.boolean(),
 		evaluatorDurationMs: z.number(),
 		payloadBytes: z.number(),
 	}),

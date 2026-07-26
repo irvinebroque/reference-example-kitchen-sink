@@ -75,9 +75,9 @@ export default function Home() {
 							</Text>
 							<Text as="dd">{data.statsig.diagnostics.evaluatorVersion}</Text>
 							<Text as="dt" variant="secondary">
-								Ruleset generation
+								Config specs time
 							</Text>
-							<Text as="dd">{data.statsig.diagnostics.rulesetGeneration}</Text>
+							<Text as="dd">{data.statsig.diagnostics.configSpecsTime}</Text>
 							<Text as="dt" variant="secondary">
 								Payload
 							</Text>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { loadStatsigAssignment } from '../../workers/app/statsig-client';
-import { createOfficialBootstrap, rulesetFixture } from '../fixtures/ruleset';
+import { createOfficialBootstrap, configSpecsFixture } from '../fixtures/config-specs';
 
 describe('application Statsig assignment loader', () => {
 	it('makes exactly one credential-free Service Binding request', async () => {
@@ -25,8 +25,8 @@ describe('application Statsig assignment loader', () => {
 						bootstrap,
 						diagnostics: {
 							evaluatorVersion: 'test',
-							rulesetGeneration: String(rulesetFixture.time),
-							rulesetStale: false,
+							configSpecsTime: String(configSpecsFixture.time),
+							configSpecsStale: false,
 							evaluatorDurationMs: 1,
 							payloadBytes: 100,
 						},

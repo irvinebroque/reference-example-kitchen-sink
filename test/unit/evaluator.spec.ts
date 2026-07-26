@@ -2,7 +2,7 @@ import { StatsigClient } from '@statsig/js-client';
 import { StatsigServerlessClient } from '@statsig/serverless-client';
 import { describe, expect, it } from 'vitest';
 import type { TargetingUser } from '../../shared/statsig-contract';
-import { rulesetFixture } from '../fixtures/ruleset';
+import { configSpecsFixture } from '../fixtures/config-specs';
 
 const user: TargetingUser = {
 	userID: 'demo:user',
@@ -17,7 +17,7 @@ function createServerClient(): StatsigServerlessClient {
 		loggingEnabled: 'disabled',
 		networkConfig: { preventAllNetworkTraffic: true },
 	});
-	client.dataAdapter.setData(JSON.stringify(rulesetFixture));
+	client.dataAdapter.setData(JSON.stringify(configSpecsFixture));
 	client.initializeSync();
 	return client;
 }

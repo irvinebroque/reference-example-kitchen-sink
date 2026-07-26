@@ -26,10 +26,10 @@ configuration but does not install the Volatile Cache binding in the auxiliary
 evaluator Worker.
 
 Wrangler does not yet expose this binding in its public schema or generated
-types, so `types/statsig-memory-cache.d.ts` supplies the narrow
+types, so `types/statsig-config-specs-cache.d.ts` supplies the narrow
 `read(key, fallback)` and `delete(key)` contract. The configured 64 MiB
 per-value and 128 MiB total limits must be validated against the representative
-30 MB ruleset. KV is intentionally not used because
+30 MB config specs payload. KV is intentionally not used because
 [Workers KV limits values to 25 MiB](https://developers.cloudflare.com/kv/platform/limits/).
 
 ## Architecture
@@ -40,7 +40,7 @@ flowchart LR
     App -->|"HMAC-keyed GET"| Cache["Workers Cache\nEvaluationEntrypoint only"]
     Cache --> Evaluator["Statsig evaluator Worker"]
     Evaluator --> Volatile["Volatile Cache\nraw config specs"]
-    Evaluator --> SDK["StatsigServerlessClient\none per generation"]
+    Evaluator --> SDK["StatsigServerlessClient\none per config specs time value"]
     SDK --> Bootstrap["Official initialize response"]
 ```
 
@@ -110,11 +110,11 @@ Successful evaluator responses use a short public TTL, stale-while-revalidate,
 and an application cache tag. App, auth, admin, and error responses are
 `private, no-store`.
 
-## Ruleset lifecycle
+## Config specs lifecycle
 
-Ruleset freshness uses absolute TTL expiry. The runtime snapshot retains the
-initialized client and generation, not the raw JSON string. When the generation
-changes, the isolate-local client is replaced.
+Config specs freshness uses absolute TTL expiry. The runtime snapshot retains
+the initialized client and config specs `time`, not the raw JSON string. When
+`time` changes, the isolate-local client is replaced.
 
 There is no refresh cron. For immediate invalidation:
 
@@ -139,10 +139,10 @@ npx wrangler deploy --dry-run
 npx wrangler deploy --dry-run --config wrangler.statsig.jsonc
 ```
 
-For a production-shaped ruleset:
+For a production-shaped config specs payload:
 
 ```sh
-npm run benchmark:ruleset -- /path/to/ruleset.json
+npm run benchmark:config-specs -- /path/to/config-specs.json
 ```
 
 ## Deployment order
@@ -173,5 +173,5 @@ so evaluator changes must reach staging first.
   development.
 - Evaluator `503`: inspect structured logs for download, timeout, config-spec
   initialization, or bootstrap validation failures.
-- High ruleset memory: benchmark the representative ruleset and confirm
-  isolate and Volatile Cache limits before deployment.
+- High config-specs memory usage: benchmark representative config specs and
+  confirm isolate and Volatile Cache limits before deployment.

@@ -28,8 +28,8 @@ describe('internal schemas', () => {
 			},
 			diagnostics: {
 				evaluatorVersion: 'test',
-				rulesetGeneration: '1',
-				rulesetStale: false,
+				configSpecsTime: '1',
+				configSpecsStale: false,
 				evaluatorDurationMs: 1,
 				payloadBytes: 100,
 			},

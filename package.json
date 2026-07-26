@@ -14,7 +14,7 @@
 		"dev": "vite",
 		"guard:no-cache-api": "node scripts/guard-no-cache-api.mjs",
 		"hash-password": "node scripts/hash-demo-password.mjs",
-		"benchmark:ruleset": "node scripts/benchmark-ruleset.mjs",
+		"benchmark:config-specs": "node scripts/benchmark-config-specs.mjs",
 		"preview": "wrangler preview",
 		"start": "vite",
 		"test": "vitest",

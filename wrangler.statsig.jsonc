@@ -25,7 +25,7 @@
 		"APP_ENVIRONMENT": "production",
 		"EVALUATOR_VERSION": "local",
 		"STATSIG_CLIENT_KEY": "client-reference-example",
-		"RULESET_TTL_SECONDS": "300",
+		"CONFIG_SPECS_TTL_SECONDS": "300",
 		"BOOTSTRAP_TTL_SECONDS": "60",
 		"BOOTSTRAP_STALE_SECONDS": "300",
 	},
@@ -35,9 +35,9 @@
 	"unsafe": {
 		"bindings": [
 			{
-				"name": "RULESET_CACHE",
+				"name": "CONFIG_SPECS_CACHE",
 				"type": "volatile_cache",
-				"cache_id": "reference-example-kitchen-sink-statsig-ruleset",
+				"cache_id": "reference-example-kitchen-sink-statsig-config-specs",
 				"max_keys": 4,
 				"max_value_size": 67108864,
 				"max_total_value_size": 134217728,
@@ -52,7 +52,7 @@
 				"APP_ENVIRONMENT": "staging",
 				"EVALUATOR_VERSION": "staging",
 				"STATSIG_CLIENT_KEY": "client-reference-example",
-				"RULESET_TTL_SECONDS": "60",
+				"CONFIG_SPECS_TTL_SECONDS": "60",
 				"BOOTSTRAP_TTL_SECONDS": "30",
 				"BOOTSTRAP_STALE_SECONDS": "60",
 			},
@@ -62,9 +62,9 @@
 			"unsafe": {
 				"bindings": [
 					{
-						"name": "RULESET_CACHE",
+						"name": "CONFIG_SPECS_CACHE",
 						"type": "volatile_cache",
-						"cache_id": "reference-example-kitchen-sink-statsig-staging-ruleset",
+						"cache_id": "reference-example-kitchen-sink-statsig-staging-config-specs",
 						"max_keys": 4,
 						"max_value_size": 67108864,
 						"max_total_value_size": 134217728,
