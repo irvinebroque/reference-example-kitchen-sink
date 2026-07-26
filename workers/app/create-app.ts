@@ -3,7 +3,7 @@ import express, { type ErrorRequestHandler } from 'express';
 import { RouterContextProvider, type ServerBuild } from 'react-router';
 import { appContext, sessionContext, statsigContext, type AppMetadata } from '../../app/context';
 import { createAuthService } from './auth';
-import { adaptReactRouterDocumentResponses } from './document-response-adapter';
+import { adaptReactRouterDocumentResponses } from './compat/react-router-document-response';
 import { createRequestContextMiddleware } from './request-context';
 import { StatsigService } from './statsig-client';
 

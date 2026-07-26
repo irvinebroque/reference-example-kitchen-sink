@@ -1,5 +1,5 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
-import { handleAdminRequest, refreshRuleset } from './admin-handler';
+import { handleAdminRequest } from './admin-handler';
 import { handleEvaluationRequest } from './evaluation-handler';
 import { getRulesetRepository } from './runtime';
 
@@ -12,9 +12,5 @@ export class EvaluationEntrypoint extends WorkerEntrypoint<StatsigEnv> {
 export default {
 	fetch(request: Request, env: StatsigEnv): Promise<Response> {
 		return handleAdminRequest(request, env, getRulesetRepository(env));
-	},
-
-	scheduled(_controller: ScheduledController, env: StatsigEnv): Promise<void> {
-		return refreshRuleset(getRulesetRepository(env));
 	},
 } satisfies ExportedHandler<StatsigEnv>;

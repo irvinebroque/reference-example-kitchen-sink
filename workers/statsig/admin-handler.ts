@@ -1,5 +1,4 @@
 import { timingSafeEqual } from 'node:crypto';
-import { supportedCompatibilityEnvelope } from './ruleset-compiler';
 import { noStoreJson } from './responses';
 import type { RulesetRepository } from './ruleset-cache';
 
@@ -20,34 +19,26 @@ export async function handleAdminRequest(request: Request, env: StatsigEnv, repo
 			ok: true,
 			entrypoint: 'admin',
 			evaluatorVersion: env.EVALUATOR_VERSION,
+			evaluationEngine: '@statsig/serverless-client',
 			volatileCache: 'workerd-memory-cache',
 			memoryCacheConfiguration: 'unsafe-volatile-cache-binding',
 		});
 	}
-	if (pathname === '/diagnostics/compatibility') {
-		return noStoreJson(supportedCompatibilityEnvelope());
-	}
-	if (pathname === '/admin/refresh' && request.method === 'POST') {
-		if (!authorized(request, env.REFRESH_SECRET)) {
+	if (pathname === '/admin/invalidate' && request.method === 'POST') {
+		if (!authorized(request, env.INVALIDATION_SECRET)) {
 			return noStoreJson({ error: 'unauthorized' }, { status: 401 });
 		}
-		const snapshot = await repository.refresh();
+		repository.invalidate();
+		console.log(
+			JSON.stringify({
+				event: 'statsig_ruleset_invalidation',
+				applicationId: env.APP_ID,
+			}),
+		);
 		return noStoreJson({
 			ok: true,
-			rulesetGeneration: snapshot.generation,
-			stale: snapshot.stale,
+			rulesetInvalidated: true,
 		});
 	}
 	return noStoreJson({ error: 'not_found' }, { status: 404 });
-}
-
-export async function refreshRuleset(repository: RulesetRepository): Promise<void> {
-	const snapshot = await repository.refresh();
-	console.log(
-		JSON.stringify({
-			event: 'statsig_ruleset_refresh',
-			rulesetGeneration: snapshot.generation,
-			stale: snapshot.stale,
-		}),
-	);
 }

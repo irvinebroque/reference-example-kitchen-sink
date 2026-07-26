@@ -1,7 +1,7 @@
-import { compileRuleset } from '../../workers/statsig/ruleset-compiler';
-import type { StatsigRulesetDocument } from '../../workers/statsig/ruleset-schema';
+import { StatsigServerlessClient } from '@statsig/serverless-client';
+import type { TargetingUser } from '../../shared/statsig-contract';
 
-export const rulesetFixture: StatsigRulesetDocument = {
+export const rulesetFixture = {
 	time: 1_725_000_000_000,
 	has_updates: true,
 	feature_gates: [
@@ -87,7 +87,7 @@ export const rulesetFixture: StatsigRulesetDocument = {
 					passPercentage: 100,
 					conditions: [
 						{
-							type: 'custom_field',
+							type: 'user_field',
 							targetValue: 'reference-app',
 							operator: 'eq',
 							field: 'applicationId',
@@ -108,4 +108,17 @@ export const rulesetFixture: StatsigRulesetDocument = {
 	segments: [],
 };
 
-export const compiledRulesetFixture = compileRuleset(rulesetFixture);
+export function createOfficialBootstrap(user: TargetingUser, clientKey = 'client-test') {
+	const client = new StatsigServerlessClient(`secret-test-${crypto.randomUUID()}`, {
+		loggingEnabled: 'disabled',
+		networkConfig: { preventAllNetworkTraffic: true },
+	});
+	client.dataAdapter.setData(JSON.stringify(rulesetFixture));
+	client.initializeSync();
+	const bootstrap = client.getClientInitializeResponse(user, {
+		clientSDKKey: clientKey,
+		hash: 'none',
+	});
+	if (!bootstrap) throw new Error('Fixture Statsig client failed to initialize');
+	return bootstrap;
+}

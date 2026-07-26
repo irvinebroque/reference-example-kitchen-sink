@@ -5,7 +5,6 @@ import {
 	type TargetingUser,
 } from '../../shared/statsig-contract';
 import { anonymousKeyPrefix, verifyUserCacheKey } from '../../shared/user-cache-key';
-import { createBootstrap } from './bootstrap';
 import { noStoreJson, positiveNumberSetting } from './responses';
 import type { RulesetRepository } from './ruleset-cache';
 
@@ -50,13 +49,23 @@ export async function handleEvaluationRequest(request: Request, env: StatsigEnv,
 
 	const route = parseEvaluationRoute(request);
 	if (!route) return noStoreJson({ error: 'not_found' }, { status: 404 });
+	if (route.applicationId !== env.APP_ID) {
+		return noStoreJson({ error: 'application_not_found' }, { status: 404 });
+	}
 
 	const user = await readVerifiedUser(request, route, env.USER_CACHE_HMAC_SECRET);
 	if (user instanceof Response) return user;
 
 	try {
 		const snapshot = await repository.get();
-		const bootstrap = bootstrapResponseSchema.parse(await createBootstrap(snapshot.ruleset, user, route.applicationId));
+		const initializeResponse = snapshot.client.getClientInitializeResponse(user, {
+			clientSDKKey: env.STATSIG_CLIENT_KEY,
+			hash: 'none',
+		});
+		if (!initializeResponse) {
+			throw new Error('Statsig client is not initialized');
+		}
+		const bootstrap = bootstrapResponseSchema.parse(initializeResponse);
 		const bootstrapBytes = new TextEncoder().encode(JSON.stringify(bootstrap)).byteLength;
 		const serviceResponse = evaluatorServiceResponseSchema.parse({
 			bootstrap,

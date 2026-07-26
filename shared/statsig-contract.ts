@@ -12,65 +12,70 @@ export const targetingUserSchema = z.object({
 
 export type TargetingUser = z.infer<typeof targetingUserSchema>;
 
-export const statsigUserSchema = targetingUserSchema.omit({ statsigEnvironment: true });
+export const statsigUserSchema = targetingUserSchema.omit({ statsigEnvironment: true }).passthrough();
 export type StatsigUser = z.infer<typeof statsigUserSchema>;
 
-export function toStatsigUser(user: TargetingUser): StatsigUser {
-	const { statsigEnvironment: _environment, ...statsigUser } = user;
-	return statsigUser;
-}
+const secondaryExposureSchema = z
+	.object({
+		gate: z.string(),
+		gateValue: z.string(),
+		ruleID: z.string(),
+	})
+	.passthrough();
 
-const secondaryExposureSchema = z.object({
-	gate: z.string(),
-	gateValue: z.string(),
-	ruleID: z.string(),
-});
+const evaluationBaseSchema = z
+	.object({
+		id_type: z.string(),
+		name: z.string(),
+		rule_id: z.string(),
+		secondary_exposures: z.array(z.union([secondaryExposureSchema, z.string()])),
+		version: z.string().optional(),
+	})
+	.passthrough();
 
-const evaluationBaseSchema = z.object({
-	id_type: z.string(),
-	name: z.string(),
-	rule_id: z.string(),
-	secondary_exposures: z.array(z.union([secondaryExposureSchema, z.string()])),
-	version: z.string().optional(),
-});
-
-export const bootstrapResponseSchema = z.object({
-	feature_gates: z.record(z.string(), evaluationBaseSchema.extend({ value: z.boolean() })),
-	dynamic_configs: z.record(
-		z.string(),
-		evaluationBaseSchema.extend({
-			value: z.record(z.string(), z.unknown()),
-			group: z.string(),
-			group_name: z.string().optional(),
-			is_device_based: z.boolean(),
-			is_experiment_active: z.boolean().optional(),
-			is_user_in_experiment: z.boolean().optional(),
-			passed: z.boolean().optional(),
-			is_in_layer: z.boolean().optional(),
-			explicit_parameters: z.array(z.string()).optional(),
-		}),
-	),
-	layer_configs: z.record(
-		z.string(),
-		evaluationBaseSchema.extend({
-			value: z.record(z.string(), z.unknown()),
-			group: z.string(),
-			group_name: z.string().optional(),
-			is_device_based: z.boolean(),
-			allocated_experiment_name: z.string(),
-			explicit_parameters: z.array(z.string()),
-			undelegated_secondary_exposures: z.array(z.union([secondaryExposureSchema, z.string()])).optional(),
-			parameter_rule_ids: z.record(z.string(), z.string()).optional(),
-		}),
-	),
-	has_updates: z.literal(true),
-	time: z.number(),
-	generator: z.string(),
-	sdkInfo: z.record(z.string(), z.string()),
-	evaluated_keys: z.record(z.string(), z.unknown()),
-	hash_used: z.literal('none'),
-	user: statsigUserSchema,
-});
+export const bootstrapResponseSchema = z
+	.object({
+		feature_gates: z.record(z.string(), evaluationBaseSchema.extend({ value: z.boolean() }).passthrough()),
+		dynamic_configs: z.record(
+			z.string(),
+			evaluationBaseSchema
+				.extend({
+					value: z.record(z.string(), z.unknown()),
+					group: z.string(),
+					group_name: z.string().optional(),
+					is_device_based: z.boolean(),
+					is_experiment_active: z.boolean().optional(),
+					is_user_in_experiment: z.boolean().optional(),
+					passed: z.boolean().optional(),
+					is_in_layer: z.boolean().optional(),
+					explicit_parameters: z.array(z.string()).optional(),
+				})
+				.passthrough(),
+		),
+		layer_configs: z.record(
+			z.string(),
+			evaluationBaseSchema
+				.extend({
+					value: z.record(z.string(), z.unknown()),
+					group: z.string(),
+					group_name: z.string().optional(),
+					is_device_based: z.boolean(),
+					allocated_experiment_name: z.string().optional(),
+					explicit_parameters: z.array(z.string()),
+					undelegated_secondary_exposures: z.array(z.union([secondaryExposureSchema, z.string()])).optional(),
+					parameter_rule_ids: z.record(z.string(), z.string()).optional(),
+				})
+				.passthrough(),
+		),
+		has_updates: z.literal(true),
+		time: z.number(),
+		generator: z.string(),
+		sdkInfo: z.record(z.string(), z.string()),
+		evaluated_keys: z.record(z.string(), z.unknown()),
+		hash_used: z.literal('none'),
+		user: statsigUserSchema,
+	})
+	.passthrough();
 
 export type BootstrapResponse = z.infer<typeof bootstrapResponseSchema>;
 

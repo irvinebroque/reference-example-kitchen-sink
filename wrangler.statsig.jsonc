@@ -21,14 +21,16 @@
 		},
 	},
 	"vars": {
+		"APP_ID": "reference-app",
 		"APP_ENVIRONMENT": "production",
 		"EVALUATOR_VERSION": "local",
+		"STATSIG_CLIENT_KEY": "client-reference-example",
 		"RULESET_TTL_SECONDS": "300",
 		"BOOTSTRAP_TTL_SECONDS": "60",
 		"BOOTSTRAP_STALE_SECONDS": "300",
 	},
 	"secrets": {
-		"required": ["STATSIG_SERVER_SECRET", "USER_CACHE_HMAC_SECRET", "REFRESH_SECRET"],
+		"required": ["STATSIG_SERVER_SECRET", "USER_CACHE_HMAC_SECRET", "INVALIDATION_SECRET"],
 	},
 	"unsafe": {
 		"bindings": [
@@ -42,21 +44,20 @@
 			},
 		],
 	},
-	"triggers": {
-		"crons": ["*/5 * * * *"],
-	},
 	"env": {
 		"staging": {
 			"name": "reference-example-kitchen-sink-statsig-staging",
 			"vars": {
+				"APP_ID": "reference-app",
 				"APP_ENVIRONMENT": "staging",
 				"EVALUATOR_VERSION": "staging",
+				"STATSIG_CLIENT_KEY": "client-reference-example",
 				"RULESET_TTL_SECONDS": "60",
 				"BOOTSTRAP_TTL_SECONDS": "30",
 				"BOOTSTRAP_STALE_SECONDS": "60",
 			},
 			"secrets": {
-				"required": ["STATSIG_SERVER_SECRET", "USER_CACHE_HMAC_SECRET", "REFRESH_SECRET"],
+				"required": ["STATSIG_SERVER_SECRET", "USER_CACHE_HMAC_SECRET", "INVALIDATION_SECRET"],
 			},
 			"unsafe": {
 				"bindings": [

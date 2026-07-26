@@ -12,7 +12,7 @@ export default defineConfig({
 			// Express 4's depd wrapper constructs functions with new Function(),
 			// which workerd correctly rejects. This compatibility shim preserves
 			// the callable API without dynamic code generation.
-			depd: fileURLToPath(new URL('./workers/app/depd-workerd.cjs', import.meta.url)),
+			depd: fileURLToPath(new URL('./workers/app/compat/depd-workerd.cjs', import.meta.url)),
 		},
 	},
 	plugins: [

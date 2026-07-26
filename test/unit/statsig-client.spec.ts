@@ -1,26 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { StatsigService } from '../../workers/app/statsig-client';
-import { createBootstrap } from '../../workers/statsig/bootstrap';
-import { compiledRulesetFixture, rulesetFixture } from '../fixtures/ruleset';
+import { createOfficialBootstrap, rulesetFixture } from '../fixtures/ruleset';
 
 describe('application Statsig service client', () => {
 	it('makes exactly one credential-free Service Binding request', async () => {
 		let calls = 0;
 		let observedRequest: Request | undefined;
-		const bootstrap = await createBootstrap(
-			compiledRulesetFixture,
-			{
-				userID: 'demo:user',
-				email: 'user@example.com',
-				customIDs: { applicationID: 'reference-app' },
-				custom: {
-					applicationId: 'reference-app',
-					tenantId: 'reference-tenant',
-				},
-				statsigEnvironment: { tier: 'production' },
+		const bootstrap = createOfficialBootstrap({
+			userID: 'demo:user',
+			email: 'user@example.com',
+			customIDs: { applicationID: 'reference-app' },
+			custom: {
+				applicationId: 'reference-app',
+				tenantId: 'reference-tenant',
 			},
-			'reference-app',
-		);
+			statsigEnvironment: { tier: 'production' },
+		});
 		const service = {
 			async fetch(request: Request) {
 				calls += 1;

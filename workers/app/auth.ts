@@ -1,6 +1,6 @@
-import type { Request, RequestHandler, Response } from 'express';
-import type { AuthOptions, Session } from 'next-auth';
-import { createCredentialsProvider, createNextAuthEndpointHandler, getExpressSession } from './next-auth-adapter';
+import type { AuthOptions } from 'next-auth';
+import { createNextAuthBridge, type NextAuthBridge } from './compat/next-auth-bridge';
+import { credentialsProvider } from './compat/next-auth-interop';
 import { constantTimeEqual, verifyPbkdf2Password } from './password';
 
 function createAuthOptions(env: Env): AuthOptions {
@@ -9,7 +9,7 @@ function createAuthOptions(env: Env): AuthOptions {
 		session: { strategy: 'jwt' },
 		useSecureCookies: process.env.NODE_ENV === 'production',
 		providers: [
-			createCredentialsProvider({
+			credentialsProvider({
 				name: 'Reference credentials',
 				credentials: {
 					username: { label: 'Username', type: 'text' },
@@ -47,17 +47,9 @@ function createAuthOptions(env: Env): AuthOptions {
 	};
 }
 
-export interface AuthService {
-	endpointHandler: RequestHandler;
-	loadSession(request: Request, response: Response): Promise<Session | null>;
-}
+export type AuthService = NextAuthBridge;
 
 export function createAuthService(env: Env): AuthService {
 	const options = createAuthOptions(env);
-	return {
-		endpointHandler: createNextAuthEndpointHandler(options),
-		loadSession(request, response) {
-			return getExpressSession(request, response, options);
-		},
-	};
+	return createNextAuthBridge(options);
 }

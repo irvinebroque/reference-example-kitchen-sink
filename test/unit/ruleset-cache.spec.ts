@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	RulesetRepository,
 	VolatileRulesetValueCache,
+	type CachedRuleset,
 	type RulesetSource,
 	type RulesetValueCache,
 	type VolatileValueCacheBinding,
@@ -9,53 +10,98 @@ import {
 import { rulesetFixture } from '../fixtures/ruleset';
 
 class MemoryRulesetCache implements RulesetValueCache {
-	value: string | undefined;
-	replacements = 0;
+	value: CachedRuleset | undefined;
+	deletions = 0;
 
-	async read(_key: string, fallback: () => Promise<{ value: string; expiration: number }>): Promise<string> {
-		this.value ??= (await fallback()).value;
+	async read(_key: string, fallback: () => Promise<{ value: CachedRuleset; expiration: number }>): Promise<CachedRuleset> {
+		if (!this.value || this.value.expiresAt <= Date.now()) {
+			this.value = (await fallback()).value;
+		}
 		return this.value;
 	}
 
-	async replace(_key: string, value: string): Promise<string> {
-		this.replacements += 1;
-		this.value = value;
-		return value;
+	delete(): void {
+		this.deletions += 1;
+		this.value = undefined;
 	}
 }
 
+function cachedRuleset(document = rulesetFixture, expiresAt = Date.now() + 60_000): CachedRuleset {
+	return {
+		rawJson: JSON.stringify(document),
+		expiresAt,
+	};
+}
+
+afterEach(() => {
+	vi.restoreAllMocks();
+});
+
 describe('ruleset repository', () => {
-	it('replaces the volatile cache value through its authoritative key', async () => {
+	it('invalidates the volatile cache through its authoritative key', () => {
 		const calls: string[] = [];
 		const binding: VolatileValueCacheBinding = {
 			delete(key) {
 				calls.push(`delete:${key}`);
 			},
-			async read(key, fallback) {
-				calls.push(`read:${key}`);
+			async read(_key, fallback) {
 				return (await fallback()).value;
 			},
 		};
 		const cache = new VolatileRulesetValueCache(binding);
-		expect(await cache.replace('ruleset', 'fresh', Date.now() + 1_000)).toBe('fresh');
-		expect(calls).toEqual(['delete:ruleset', 'read:ruleset']);
+		cache.delete('ruleset');
+		expect(calls).toEqual(['delete:ruleset']);
 	});
 
-	it('reads and compiles the ruleset through the configured cache', async () => {
+	it('initializes the official client once and does not retain raw JSON in the snapshot', async () => {
 		const source: RulesetSource = {
 			async fetchRuleset() {
 				throw new Error('cache miss was not expected');
 			},
 		};
 		const cache = new MemoryRulesetCache();
-		cache.value = JSON.stringify(rulesetFixture);
-		const repository = new RulesetRepository(source, cache, 60);
+		cache.value = cachedRuleset();
+		const repository = new RulesetRepository('secret-test-cache', source, cache, 60);
 		const snapshot = await repository.get();
+		const bootstrap = snapshot.client.getClientInitializeResponse({ userID: 'demo:user' }, { clientSDKKey: 'client-test', hash: 'none' });
+
 		expect(snapshot.generation).toBe(String(rulesetFixture.time));
-		expect(snapshot.ruleset.featureGates[0]?.name).toBe('reference_gate');
+		expect(snapshot).not.toHaveProperty('rawJson');
+		expect(bootstrap?.feature_gates.reference_gate?.value).toBe(true);
+		expect((await repository.get()).client).toBe(snapshot.client);
 	});
 
-	it('publishes explicit refreshes through the same cache snapshot', async () => {
+	it('uses the cached absolute expiry instead of extending TTL when installing a snapshot', async () => {
+		const now = 10_000;
+		vi.spyOn(Date, 'now').mockReturnValue(now);
+		const source: RulesetSource = {
+			async fetchRuleset() {
+				throw new Error('cache miss was not expected');
+			},
+		};
+		const cache = new MemoryRulesetCache();
+		cache.value = cachedRuleset(rulesetFixture, now + 250);
+		const repository = new RulesetRepository('secret-test-expiry', source, cache, 60);
+		const snapshot = await repository.get();
+		expect(snapshot.expiresAt).toBe(now + 250);
+	});
+
+	it('rejects config specs the official client cannot initialize', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => undefined);
+		const source: RulesetSource = {
+			async fetchRuleset() {
+				throw new Error('cache miss was not expected');
+			},
+		};
+		const cache = new MemoryRulesetCache();
+		cache.value = cachedRuleset({ time: rulesetFixture.time });
+		const repository = new RulesetRepository('secret-test-invalid', source, cache, 60);
+		await expect(repository.get()).rejects.toThrow('Statsig config specs failed to initialize');
+	});
+
+	it('expires lazily and replaces the isolate-local client when generation changes', async () => {
+		let now = 20_000;
+		vi.spyOn(Date, 'now').mockImplementation(() => now);
 		const refreshedRuleset = { ...rulesetFixture, time: rulesetFixture.time + 1 };
 		const source: RulesetSource = {
 			async fetchRuleset() {
@@ -63,43 +109,51 @@ describe('ruleset repository', () => {
 			},
 		};
 		const cache = new MemoryRulesetCache();
-		cache.value = JSON.stringify(rulesetFixture);
-		const repository = new RulesetRepository(source, cache, 60);
+		cache.value = cachedRuleset(rulesetFixture, now + 10);
+		const repository = new RulesetRepository('secret-test-generation', source, cache, 60);
+		const initial = await repository.get();
 
-		await repository.get();
-		const refreshed = await repository.refresh();
+		now += 11;
+		const refreshed = await repository.get();
 
 		expect(refreshed.generation).toBe(String(refreshedRuleset.time));
-		expect(cache.replacements).toBe(1);
-		expect(JSON.parse(cache.value ?? '').time).toBe(refreshedRuleset.time);
-		expect((await repository.get()).generation).toBe(String(refreshedRuleset.time));
+		expect(refreshed.client).not.toBe(initial.client);
 	});
 
-	it('reuses the compiled model when a refresh republishes the same generation', async () => {
+	it('clears local and volatile state during explicit invalidation', async () => {
 		const source: RulesetSource = {
 			async fetchRuleset() {
 				return JSON.stringify(rulesetFixture);
 			},
 		};
 		const cache = new MemoryRulesetCache();
-		cache.value = JSON.stringify(rulesetFixture);
-		const repository = new RulesetRepository(source, cache, 60);
+		cache.value = cachedRuleset();
+		const repository = new RulesetRepository('secret-test-invalidation', source, cache, 60);
 		const initial = await repository.get();
-		const refreshed = await repository.refresh();
-		expect(refreshed.ruleset).toBe(initial.ruleset);
+
+		repository.invalidate();
+		const reloaded = await repository.get();
+
+		expect(cache.deletions).toBe(1);
+		expect(reloaded.client).not.toBe(initial.client);
 	});
 
-	it('returns last-known-good data when refresh fails', async () => {
+	it('returns last-known-good data when TTL reload fails', async () => {
+		let now = 30_000;
+		vi.spyOn(Date, 'now').mockImplementation(() => now);
 		const source: RulesetSource = {
 			async fetchRuleset() {
 				throw new Error('source unavailable');
 			},
 		};
 		const cache = new MemoryRulesetCache();
-		cache.value = JSON.stringify(rulesetFixture);
-		const repository = new RulesetRepository(source, cache, 60);
+		cache.value = cachedRuleset(rulesetFixture, now + 10);
+		const repository = new RulesetRepository('secret-test-stale', source, cache, 60);
 		await repository.get();
-		const stale = await repository.refresh();
+
+		now += 11;
+		const stale = await repository.get();
+
 		expect(stale.stale).toBe(true);
 		expect(stale.generation).toBe(String(rulesetFixture.time));
 	});

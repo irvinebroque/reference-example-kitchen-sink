@@ -1,58 +1,59 @@
 # Cloudflare Workers reference application
 
-This repository implements the two-Worker architecture in
-`IMPLEMENTATION_PLAN.md`:
+This repository is a deployable two-Worker reference for:
 
 - Vite 8 and React Router 8 framework-mode SSR.
-- `@cloudflare/vite-plugin` as the only Vite-to-Workers integration.
 - Express 4 bridged to Workers with `httpServerHandler`.
-- The literal `next-auth` v4 package through an Express adapter.
-- One Statsig Service Binding `fetch()` for each authenticated SSR request.
-- A private named evaluator entrypoint with Workers Cache enabled.
-- HMAC-partitioned per-user bootstrap responses.
-- A typed custom evaluator and `@statsig/js-client` bootstrap validation.
-- Preview configuration that binds app Previews to the staging evaluator's
-  production deployment.
+- Literal `next-auth` 4.24.15 through a narrow compatibility capsule.
+- A private Statsig evaluator reached through a Service Binding.
+- Workers Cache for HMAC-partitioned per-user bootstrap responses.
+- Volatile Cache for large raw Statsig config specs.
+- Official evaluation through `@statsig/serverless-client` 3.33.3.
+- Public `@statsig/js-client` bootstrap initialization with zero browser
+  Statsig network traffic.
 
-## Important experimental prerequisite
+See `IMPLEMENTATION_PLAN.md` for the detailed design.
+
+## Experimental prerequisites
 
 The evaluator uses workerd's process-local `MemoryCache` through an experimental
 `unsafe.bindings` `volatile_cache` entry. Local Vite development depends on the
 Wrangler prerelease built from
-[cloudflare/workers-sdk#14868](https://github.com/cloudflare/workers-sdk/pull/14868),
-which connects that binding to Miniflare/workerd.
+[cloudflare/workers-sdk#14868](https://github.com/cloudflare/workers-sdk/pull/14868).
 
-The prerelease does not add the binding to Wrangler's public configuration
-schema or generated environment types. `types/statsig-memory-cache.d.ts`
-therefore supplies the narrow `read(key, fallback)` and `delete(key)` type until
-first-class Wrangler support is available. Explicit refresh uses the
-experimental `memory_cache_delete` compatibility flag to replace the same
-coalesced cache key used by request-driven loading. The configured 64 MiB
-per-value and 128 MiB total limits must be validated with the documented
-representative 30 MB benchmark.
+Wrangler does not yet expose this binding in its public schema or generated
+types, so `types/statsig-memory-cache.d.ts` supplies the narrow
+`read(key, fallback)` and `delete(key)` contract. The configured 64 MiB
+per-value and 128 MiB total limits must be validated against the representative
+30 MB ruleset. KV is intentionally not used because
+[Workers KV limits values to 25 MiB](https://developers.cloudflare.com/kv/platform/limits/).
 
 The current workerd Node HTTP bridge also does not deliver incremental
 `ServerResponse.write()` chunks from `@react-router/express` to the outer Fetch
-response. `workers/app/document-response-adapter.ts` wraps only React Router
-document requests, leaving `.data` responses and non-document Express routes on
-the platform's normal response semantics. SSR, actions, redirects, errors,
-hydration, and HMR work locally, but true incremental SSR streaming remains a
-documented runtime compatibility gate rather than a completed claim.
+response. `workers/app/compat/react-router-document-response.ts` buffers only
+React Router document requests. Data responses and other Express routes retain
+normal response behavior. The isolated reproduction is in
+`repro/http-server-streaming/`.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
     Browser --> App["App Worker\nExpress + NextAuth + React Router"]
-    App -->|"one GET via Service Binding"| Cache["Workers Cache\nEvaluationEntrypoint only"]
+    App -->|"HMAC-keyed GET"| Cache["Workers Cache\nEvaluationEntrypoint only"]
     Cache --> Evaluator["Statsig evaluator Worker"]
-    Evaluator --> Volatile["Ruleset cache adapter"]
-    Volatile --> Statsig["download_config_specs"]
+    Evaluator --> Volatile["Volatile Cache\nraw config specs"]
+    Evaluator --> SDK["StatsigServerlessClient\none per generation"]
+    SDK --> Bootstrap["Official initialize response"]
 ```
 
 The app Worker and evaluator default/admin entrypoint have Workers Cache
-disabled. Only `EvaluationEntrypoint` has cache enabled. The repository contains
-a guard that rejects `caches.default` and `caches.open()`.
+disabled. Only `EvaluationEntrypoint` has it enabled. A repository guard rejects
+use of `caches.default` and `caches.open()`.
+
+The evaluator deliberately does not use `@statsig/serverless-client/cloudflare`,
+`handleWithStatsig`, `StatsigCloudflareClient.initializeFromKV()`, or Statsig's
+prescribed KV lifecycle.
 
 ## Local setup
 
@@ -69,122 +70,105 @@ a guard that rejects `caches.default` and `caches.open()`.
    npm run hash-password -- 'choose-a-demo-password'
    ```
 
-   Copy the generated value into `DEMO_PASSWORD_HASH`.
-   Keep `NEXTAUTH_URL` aligned with the local Vite URL shown in the terminal.
+   Copy the generated value into `DEMO_PASSWORD_HASH`. Keep `NEXTAUTH_URL`
+   aligned with the local Vite URL.
 
-3. Start both Workers through the Cloudflare Vite plugin:
+3. Start both Workers:
 
    ```sh
    npm run dev
    ```
 
-4. Open the displayed local URL. Use `/api/auth/signin` to authenticate.
+4. Open the displayed URL and use `/api/auth/signin`.
 
-The `next` package is installed only to satisfy `next-auth` v4's declared peer
-dependency. The Worker code uses the API-handler path from `next-auth`; build
-checks verify that the application can bundle without importing a Next.js
-server runtime entrypoint.
+The `next` package only satisfies `next-auth` v4's peer dependency. NextAuth
+interop, request adaptation, response method binding, and cookie preservation
+are isolated in `workers/app/compat/next-auth-bridge.ts`. The exact pinned
+version is covered by a contract test.
 
 ## Request and cache behavior
 
 For an authenticated SSR request:
 
-1. Express calls `getServerSession()` once.
-2. The app constructs a minimized canonical Statsig user.
+1. Express loads the NextAuth session once.
+2. The app creates a minimized canonical Statsig user.
 3. It creates a versioned HMAC-SHA-256 path key.
-4. It sends one Service Binding `GET` with the canonical user in an internal
-   header. Browser cookies and authorization headers are never forwarded.
+4. It sends one credential-free Service Binding `GET`.
 5. Workers Cache keys the response by the named entrypoint and HMAC path.
-6. The app validates the evaluator response with Zod and places it in React
-   Router load context.
-7. The document emits safely escaped bootstrap JSON. The browser client calls
-   `initializeSync()` with all Statsig network traffic disabled.
+6. On a miss, the evaluator loads the current raw config specs from Volatile
+   Cache or Statsig.
+7. The isolate-local `StatsigServerlessClient` generates the official bootstrap
+   response.
+8. The app validates and embeds the response in the SSR document.
+9. The browser calls the public `client.dataAdapter.setData()` API followed by
+   `initializeSync()`, with all network traffic disabled.
 
-All app, admin, error, and authentication responses use
-`Cache-Control: private, no-store`. Successful evaluator responses use a short
-public TTL, stale-while-revalidate, and a per-application cache tag.
+Successful evaluator responses use a short public TTL, stale-while-revalidate,
+and an application cache tag. App, auth, admin, and error responses are
+`private, no-store`.
 
-## Statsig compatibility envelope
+## Ruleset lifecycle
 
-Each downloaded generation is validated and compiled once into discriminated
-conditions, compiled predicates, and a segment map. The evaluator supports the
-operators and condition types registered in
-`workers/statsig/ruleset-compiler.ts`; the diagnostics compatibility envelope is
-derived directly from those registry keys. Unknown or malformed constructs fail
-closed. It emits the V1 initialize containers and metadata required by the
-pinned `@statsig/js-client` version.
+Ruleset freshness uses absolute TTL expiry. The runtime snapshot retains the
+initialized client and generation, not the raw JSON string. When the generation
+changes, the isolate-local client is replaced.
 
-Before using a real project:
+There is no refresh cron. For immediate invalidation:
 
-1. Capture its `download_config_specs` response outside this repository.
-2. Inventory its condition types and operators.
-3. Add production-shaped fixtures and golden outputs generated by an official
-   Statsig implementation.
-4. Run:
+```sh
+curl -X POST \
+  -H "Authorization: Bearer $INVALIDATION_SECRET" \
+  https://<private-admin-host>/admin/invalidate
+```
 
-   ```sh
-   npm run benchmark:ruleset -- /path/to/ruleset.json
-   npm run test:run
-   ```
-
-Exposure-event delivery is intentionally omitted.
+The endpoint deletes the Volatile Cache key and clears local evaluator state.
+The next evaluator invocation after the per-user Workers Cache entry expires
+downloads current config specs; existing bootstrap entries retain their normal
+TTL and stale window.
 
 ## Verification
 
 ```sh
 npm run cf-typegen
-npm run typecheck
-npm run test:run
-npm run guard:no-cache-api
+npm run check
 npm run build
 npx wrangler deploy --dry-run
 npx wrangler deploy --dry-run --config wrangler.statsig.jsonc
 ```
 
+For a production-shaped ruleset:
+
+```sh
+npm run benchmark:ruleset -- /path/to/ruleset.json
+```
+
 ## Deployment order
 
-1. Deploy `reference-example-kitchen-sink-statsig-staging`:
+1. Deploy the staging evaluator:
 
    ```sh
    npm run deploy:statsig:staging
    ```
 
-2. Configure its Statsig, HMAC, and refresh secrets.
-3. Push app Preview base configuration and Preview-specific auth secrets.
+2. Configure `STATSIG_SERVER_SECRET`, `USER_CACHE_HMAC_SECRET`, and
+   `INVALIDATION_SECRET`.
+3. Push app Preview base configuration and Preview auth secrets.
 4. Create the app Preview.
 5. Deploy the production evaluator.
 6. Deploy the production app.
 
-The production app binds the production evaluator. App Previews bind the
-**production deployment of the separate staging evaluator**. A Service Binding
-on a Worker Preview cannot target another Worker's Preview, so evaluator
-changes must be deployed compatibly to staging before end-to-end app Preview
-testing.
-
-Example Preview setup:
-
-```sh
-npx wrangler preview base-config secret put AUTH_SECRET
-npx wrangler preview base-config secret put NEXTAUTH_URL
-npx wrangler preview base-config secret put DEMO_USERNAME
-npx wrangler preview base-config secret put DEMO_PASSWORD_HASH
-npx wrangler preview base-config secret put USER_CACHE_HMAC_SECRET
-npx wrangler preview base-config push
-npx wrangler preview
-```
-
-Protect public Preview URLs with Cloudflare Access and use non-production demo
-credentials.
+App Previews bind the production deployment of the separate staging evaluator.
+A Service Binding on a Worker Preview cannot target another Worker's Preview,
+so evaluator changes must reach staging first.
 
 ## Troubleshooting
 
-- `Cf-Cache-Status` remains `MISS`: verify cache is enabled for
-  `EvaluationEntrypoint`, the request is `GET`, and no `Authorization` header is
-  forwarded.
-- Authentication cookies are missing: verify the proxy scheme/host and use
-  HTTPS outside local development.
-- Evaluator returns `503`: inspect structured logs for ruleset validation,
-  timeout, or source failures.
-- Ruleset memory is too high: benchmark raw, normalized, and Brotli
-  representations and request explicit memory/Volatile Cache limits before
-  deployment.
+- Repeated `Cf-Cache-Status: MISS`: verify Workers Cache is enabled for
+  `EvaluationEntrypoint`, the request is `GET`, and no `Authorization` or cookie
+  header is forwarded.
+- Missing auth cookies: verify proxy scheme/host and use HTTPS outside local
+  development.
+- Evaluator `503`: inspect structured logs for download, timeout, config-spec
+  initialization, or bootstrap validation failures.
+- High ruleset memory: benchmark the representative ruleset and confirm
+  isolate and Volatile Cache limits before deployment.

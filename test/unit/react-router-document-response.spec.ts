@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
-import { adaptReactRouterDocumentResponses } from '../../workers/app/document-response-adapter';
+import { adaptReactRouterDocumentResponses } from '../../workers/app/compat/react-router-document-response';
 
 function requestFor(originalUrl: string, headers: Record<string, string> = {}): Request {
 	return {
