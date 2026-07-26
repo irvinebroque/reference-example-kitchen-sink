@@ -1,4 +1,4 @@
-import { IsolateVolatileValueCache, RulesetRepository, StatsigRulesetSource } from './ruleset-cache';
+import { RulesetRepository, StatsigRulesetSource } from './ruleset-cache';
 import { positiveNumberSetting } from './responses';
 
 let repository: RulesetRepository | undefined;
@@ -6,7 +6,7 @@ let repository: RulesetRepository | undefined;
 export function getRulesetRepository(env: StatsigEnv): RulesetRepository {
 	repository ??= new RulesetRepository(
 		new StatsigRulesetSource(env.STATSIG_SERVER_SECRET),
-		new IsolateVolatileValueCache(),
+		env.RULESET_CACHE,
 		positiveNumberSetting(env.RULESET_TTL_SECONDS, 300),
 	);
 	return repository;

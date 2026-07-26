@@ -17,42 +17,6 @@ export interface VolatileValueCache {
 	read<T>(key: string, fallback: () => Promise<{ value: T; expiration: number }>): Promise<T>;
 }
 
-type StoredValue = { value: unknown; expiration: number };
-
-/**
- * Compatibility fallback used until Wrangler exposes workerd MemoryCache.
- * It intentionally mirrors MemoryCache.read(key, fallback), including
- * coalescing concurrent fallback calls, but is isolate-local rather than
- * process-local and is not a replacement for the production prerequisite.
- */
-export class IsolateVolatileValueCache implements VolatileValueCache {
-	private readonly values = new Map<string, StoredValue>();
-	private readonly pending = new Map<string, Promise<unknown>>();
-
-	async read<T>(key: string, fallback: () => Promise<{ value: T; expiration: number }>): Promise<T> {
-		const stored = this.values.get(key);
-		if (stored && stored.expiration > Date.now()) {
-			return stored.value as T;
-		}
-
-		const existing = this.pending.get(key);
-		if (existing) {
-			return (await existing) as T;
-		}
-
-		const pending = fallback()
-			.then(({ value, expiration }) => {
-				this.values.set(key, { value, expiration });
-				return value;
-			})
-			.finally(() => {
-				this.pending.delete(key);
-			});
-		this.pending.set(key, pending);
-		return pending;
-	}
-}
-
 export class StatsigRulesetSource implements RulesetSource {
 	constructor(private readonly serverSecret: string) {}
 

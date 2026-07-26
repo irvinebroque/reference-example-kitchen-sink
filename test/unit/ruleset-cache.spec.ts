@@ -1,21 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { IsolateVolatileValueCache, RulesetRepository, type RulesetSource } from '../../workers/statsig/ruleset-cache';
+import { RulesetRepository, type RulesetSource, type VolatileValueCache } from '../../workers/statsig/ruleset-cache';
 import { rulesetFixture } from '../fixtures/ruleset';
 
 describe('ruleset repository', () => {
-	it('coalesces concurrent cache fills', async () => {
-		let calls = 0;
+	it('reads the ruleset through the configured cache binding', async () => {
 		const source: RulesetSource = {
 			async fetchRuleset() {
-				calls += 1;
-				await new Promise((resolve) => setTimeout(resolve, 10));
+				throw new Error('cache miss was not expected');
+			},
+		};
+		const cache: VolatileValueCache = {
+			async read() {
 				return JSON.stringify(rulesetFixture);
 			},
 		};
-		const repository = new RulesetRepository(source, new IsolateVolatileValueCache(), 60);
-		const [first, second] = await Promise.all([repository.get(), repository.get()]);
-		expect(first.generation).toBe(second.generation);
-		expect(calls).toBe(1);
+		const repository = new RulesetRepository(source, cache, 60);
+		const snapshot = await repository.get();
+		expect(snapshot.generation).toBe(String(rulesetFixture.time));
 	});
 
 	it('returns last-known-good data when refresh fails', async () => {
@@ -26,7 +27,12 @@ describe('ruleset repository', () => {
 				return JSON.stringify(rulesetFixture);
 			},
 		};
-		const repository = new RulesetRepository(source, new IsolateVolatileValueCache(), 60);
+		const cache: VolatileValueCache = {
+			async read(_key, fallback) {
+				return (await fallback()).value;
+			},
+		};
+		const repository = new RulesetRepository(source, cache, 60);
 		await repository.get();
 		fail = true;
 		const stale = await repository.get(true);

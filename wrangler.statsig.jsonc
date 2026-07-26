@@ -30,6 +30,18 @@
 	"secrets": {
 		"required": ["STATSIG_SERVER_SECRET", "USER_CACHE_HMAC_SECRET", "REFRESH_SECRET"],
 	},
+	"unsafe": {
+		"bindings": [
+			{
+				"name": "RULESET_CACHE",
+				"type": "volatile_cache",
+				"cache_id": "reference-example-kitchen-sink-statsig-ruleset",
+				"max_keys": 4,
+				"max_value_size": 67108864,
+				"max_total_value_size": 134217728,
+			},
+		],
+	},
 	"triggers": {
 		"crons": ["*/5 * * * *"],
 	},
@@ -45,6 +57,18 @@
 			},
 			"secrets": {
 				"required": ["STATSIG_SERVER_SECRET", "USER_CACHE_HMAC_SECRET", "REFRESH_SECRET"],
+			},
+			"unsafe": {
+				"bindings": [
+					{
+						"name": "RULESET_CACHE",
+						"type": "volatile_cache",
+						"cache_id": "reference-example-kitchen-sink-statsig-staging-ruleset",
+						"max_keys": 4,
+						"max_value_size": 67108864,
+						"max_total_value_size": 134217728,
+					},
+				],
 			},
 		},
 	},

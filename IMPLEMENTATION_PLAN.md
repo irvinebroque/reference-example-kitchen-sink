@@ -1,8 +1,9 @@
 # Reference App Implementation Plan
 
 **Research date:** July 26, 2026
-**Status:** Implemented in this repository, except for the explicitly blocked
-Wrangler/workerd MemoryCache prerequisite and the documented incremental
+**Status:** Implemented in this repository using the experimental
+`unsafe.bindings` Volatile Cache path enabled locally by
+`cloudflare/workers-sdk#14868`, except for the documented incremental
 `ServerResponse.write()` limitation in the current `httpServerHandler` path.
 
 ## Objective
@@ -165,36 +166,19 @@ The public workerd source contains a `MemoryCache` binding with:
 - Coalesced concurrent fallback calls for the same key.
 - Configurable key, value, and total-size limits in workerd configuration.
 
-However, as of July 26, 2026, the installed Wrangler 4.114.0 configuration
-schema does **not** expose a public `memory_cache`/`volatile_cache` binding.
-The workerd Cap'n Proto schema and the generated Miniflare workerd schema
-already contain `memoryCache`, but workers-sdk has no Wrangler configuration,
-binding conversion, deployment serialization, or generated user-facing type
-for it.
+As of July 26, 2026, the application pins the Wrangler prerelease built from
+`cloudflare/workers-sdk#14868`. The evaluator declares a `volatile_cache`
+through `unsafe.bindings`; the prerelease converts it into workerd's
+`memoryCache` binding for local Wrangler and Vite development. The application
+uses the real binding directly rather than an isolate-local compatibility
+cache.
 
-This likely requires a workers-sdk/Wrangler PR. Before implementing that PR,
-confirm the production Workers upload API accepts the binding and obtain the
-canonical wire binding type/field names from the runtime/product team. Local
-workerd support alone does not prove that deployed Workers can receive the
-binding.
-
-Expected workers-sdk PR scope:
-
-- Wrangler config schema and TypeScript config types.
-- Validation/normalization for cache IDs and limits.
-- Conversion into the Miniflare/workerd `memoryCache` binding.
-- Deployment metadata serialization.
-- `wrangler types` output for `read()` and its fallback result.
-- Cloudflare Vite plugin passthrough through the normal Wrangler config path.
-- Local-development, dry-run, deployment, Preview, and type-generation tests.
-- Public documentation for configuration, API, limits, and availability.
-
-The workers-sdk repository is already cloned locally at
-`~/src/workers-sdk` (`/Users/brendan/src/workers-sdk`) for this work.
-
-Until that is supported, implement the application-side cache behind a narrow
-interface but do not invent a Wrangler field or rely on `unsafe.bindings`
-without an approved production binding schema.
+The experimental binding is not present in Wrangler's public configuration
+schema, and `wrangler types` emits it as `any`.
+`types/statsig-memory-cache.d.ts` narrows the generated environment property to
+the `VolatileValueCache` interface used by the repository. The configuration
+allocates 64 MiB per value and 128 MiB total capacity for the representative
+30 MB ruleset benchmark.
 
 ### Ruleset representation and memory
 
@@ -507,23 +491,14 @@ After binding changes, run `wrangler types` and use the generated `Env` types.
 
 ### Prerequisite: workers-sdk/Wrangler MemoryCache support
 
-This is a prerequisite workstream, not an application feature:
+The application currently uses the experimental path:
 
-- [ ] Confirm the production Workers upload API supports MemoryCache.
-- [ ] Obtain the canonical deployment binding schema and generated runtime
-      type.
-- [ ] Implement and land first-class workers-sdk/Wrangler support in
-      `~/src/workers-sdk`.
-- [ ] Cover Wrangler configuration, validation, local workerd conversion,
-      deploy serialization, `wrangler types`, Previews, and the Cloudflare Vite
-      plugin.
-- [ ] Publish or link supported configuration/API documentation.
-- [ ] Upgrade this reference app to a workers-sdk/Wrangler version containing
-      that support.
-
-Exit criterion: a minimal Worker can use the MemoryCache binding in local Vite
-development, `wrangler deploy --dry-run`, a real deployment, and a Worker
-Preview without `unsafe.bindings` or hand-written environment types.
+- [x] Pin the Wrangler prerelease from `cloudflare/workers-sdk#14868`.
+- [x] Configure the evaluator's `volatile_cache` binding.
+- [x] Use the binding in local workerd development instead of an isolate mock.
+- [x] Verify the binding is preserved by the Vite build and Wrangler dry run.
+- [ ] Migrate from `unsafe.bindings` and the hand-written type when first-class
+      Wrangler support becomes available.
 
 ### Phase 0: compatibility spikes
 

@@ -16,17 +16,18 @@ This repository implements the two-Worker architecture in
 
 ## Important experimental prerequisite
 
-Wrangler 4.114.0 does not expose the workerd `MemoryCache` binding in its
-configuration schema or generated types. The evaluator therefore uses
-`IsolateVolatileValueCache`, a narrow compatibility implementation of
-`read(key, fallback)` with concurrent fallback coalescing.
+The evaluator uses workerd's process-local `MemoryCache` through an experimental
+`unsafe.bindings` `volatile_cache` entry. Local Vite development depends on the
+Wrangler prerelease built from
+[cloudflare/workers-sdk#14868](https://github.com/cloudflare/workers-sdk/pull/14868),
+which connects that binding to Miniflare/workerd.
 
-This fallback is intentionally labeled in `/health` and is **not** claimed to
-be process-local Volatile Cache. Do not deploy this reference as production
-complete until a supported Wrangler release exposes MemoryCache without
-`unsafe.bindings`; then replace the adapter in
-`workers/statsig/ruleset-cache.ts`, regenerate types, and rerun the documented
-30 MB benchmark.
+The prerelease does not add the binding to Wrangler's public configuration
+schema or generated environment types. `types/statsig-memory-cache.d.ts`
+therefore supplies the narrow `read(key, fallback)` type until first-class
+Wrangler support is available. The configured 64 MiB per-value and 128 MiB
+total limits must be validated with the documented representative 30 MB
+benchmark.
 
 The current workerd Node HTTP bridge also does not deliver incremental
 `ServerResponse.write()` chunks from `@react-router/express` to the outer Fetch

@@ -20,8 +20,8 @@ export async function handleAdminRequest(request: Request, env: StatsigEnv, repo
 			ok: true,
 			entrypoint: 'admin',
 			evaluatorVersion: env.EVALUATOR_VERSION,
-			volatileCache: 'isolate-fallback',
-			memoryCachePrerequisite: 'unsupported-by-wrangler-4.114.0',
+			volatileCache: 'workerd-memory-cache',
+			memoryCacheConfiguration: 'unsafe-volatile-cache-binding',
 		});
 	}
 	if (pathname === '/diagnostics/compatibility') {
