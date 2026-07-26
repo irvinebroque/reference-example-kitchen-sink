@@ -34,7 +34,7 @@
 		"DECISIONS_STALE_SECONDS": "300",
 	},
 	"secrets": {
-		"required": ["STATSIG_SERVER_SECRET", "USER_CACHE_HMAC_SECRET", "INVALIDATION_SECRET"],
+		"required": ["STATSIG_SERVER_SECRET", "INVALIDATION_SECRET"],
 	},
 	"unsafe": {
 		"bindings": [
@@ -61,7 +61,7 @@
 				"DECISIONS_STALE_SECONDS": "60",
 			},
 			"secrets": {
-				"required": ["STATSIG_SERVER_SECRET", "USER_CACHE_HMAC_SECRET", "INVALIDATION_SECRET"],
+				"required": ["STATSIG_SERVER_SECRET", "INVALIDATION_SECRET"],
 			},
 			"unsafe": {
 				"bindings": [

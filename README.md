@@ -6,13 +6,13 @@ This repository is a deployable two-Worker reference for:
 - Native Fetch request handling and streaming Web `Response` bodies.
 - Literal `next-auth` 4.24.15 through a narrow compatibility capsule.
 - A vendor-neutral, private feature service reached through a Service Binding.
-- Workers Cache for HMAC-partitioned per-user application decisions.
+- Workers Cache partitioned by per-user `ctx.props`.
 - Statsig as an evaluator-owned implementation detail.
 - Volatile Cache for large raw Statsig config specs.
 - Official server-side evaluation through `@statsig/serverless-client` 3.33.3.
 
 The browser and application Worker contain no Statsig SDK, key, targeting-user
-shape, gate name, config name, or cache-HMAC implementation.
+shape, gate name, or config name.
 
 ## Experimental prerequisites
 
@@ -35,7 +35,7 @@ config-specs payload.
 flowchart LR
     Browser --> App["App Worker\nAuth + React Router SSR"]
     App -->|"POST neutral subject"| Gateway["FeatureGatewayEntrypoint\nuncached"]
-    Gateway -->|"HMAC-keyed GET"| Cache["Workers Cache"]
+    Gateway -->|"Fixed GET + targeting-user props"| Cache["Workers Cache"]
     Cache --> Decisions["DecisionCacheEntrypoint"]
     Decisions --> Repository["ConfigSpecsRepository"]
     Repository --> Volatile["Volatile Cache"]
@@ -53,9 +53,10 @@ The evaluator exports three entrypoints:
 | `FeatureGatewayEntrypoint` | Validate and normalize neutral subjects | Disabled |
 | `DecisionCacheEntrypoint` | Evaluate and cache application decisions | Enabled |
 
-The gateway invokes the decision entrypoint through `ctx.exports.fetch()`.
-Custom RPC is used only for cache-tag invalidation because Workers Cache applies
-to `fetch()` invocations, not arbitrary RPC methods.
+The gateway invokes the decision entrypoint through
+`ctx.exports.DecisionCacheEntrypoint({ props }).fetch()`. Custom RPC is used
+only for cache-tag invalidation because Workers Cache applies to `fetch()`
+invocations, not arbitrary RPC methods.
 
 ## Feature boundary
 
@@ -72,17 +73,18 @@ concepts:
 For each authenticated SSR request, the app makes exactly one
 `FEATURE_SERVICE` request containing only the user's ID and optional normalized
 email. The Statsig Worker adds trusted application, tenant, and environment
-attributes, creates the HMAC cache key, loads the current config specs, and maps
-provider results to the application contract.
+attributes, passes the validated targeting user through typed entrypoint props,
+loads the current config specs, and maps provider results to the application
+contract.
 
 `scripts/guard-feature-boundary.mjs` prevents provider names and imports from
 appearing under `app/`, `workers/app/`, or `shared/`.
 
 ## Cache behavior
 
-The internal cache URL contains only the application ID and an
-HMAC-SHA-256 digest of the full normalized targeting user. User IDs and email
-addresses never appear in cache URLs or structured logs.
+The internal cache request uses one fixed URL. Workers Caching includes the
+full normalized targeting user from `ctx.props` in the cache key, so user IDs
+and email addresses never appear in cache URLs or structured logs.
 
 Successful decision responses use:
 
@@ -126,9 +128,8 @@ claims a complete invalidation after a partial failure.
 
    Copy the generated value into `DEMO_PASSWORD_HASH`. The shared local
    `.dev.vars` file supplies both auxiliary Workers, but
-   `USER_CACHE_HMAC_SECRET`, `STATSIG_SERVER_SECRET`, and
-   `INVALIDATION_SECRET` belong only to the evaluator in deployed
-   environments.
+   `STATSIG_SERVER_SECRET` and `INVALIDATION_SECRET` belong only to the
+   evaluator in deployed environments.
 
 3. Start both Workers:
 
@@ -170,8 +171,8 @@ so evaluator changes must reach staging before the app Preview is created.
 
 - Repeated `Cf-Cache-Status: MISS`: verify the app targets
   `FeatureGatewayEntrypoint`, the gateway loopback targets
-  `DecisionCacheEntrypoint`, and the inner request contains no cookie or
-  authorization header.
+  `DecisionCacheEntrypoint` with targeting-user `ctx.props`, and the fixed
+  inner request contains no cookie or authorization header.
 - Missing auth cookies: verify proxy scheme/host and use HTTPS outside local
   development.
 - Evaluator `503`: inspect structured logs for download, timeout,

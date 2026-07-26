@@ -29,7 +29,3 @@ export function createStatsigUser(subject: FeatureSubject, env: StatsigEnv): Tar
 		},
 	});
 }
-
-export function parseTargetingUserHeader(value: string): TargetingUser {
-	return targetingUserSchema.parse(JSON.parse(value));
-}

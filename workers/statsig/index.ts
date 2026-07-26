@@ -1,26 +1,11 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
-import { handleAdminRequest, type DecisionPurger } from './admin-handler';
+import { handleAdminRequest } from './admin-handler';
 import { ConfigSpecsRepository } from './config-specs-repository';
-import { handleDecisionRequest } from './decision-handler';
-import { handleGatewayRequest, type DecisionEntrypoint } from './gateway-handler';
+import { handleDecisionRequest, type DecisionCacheProps } from './decision-handler';
+import { handleGatewayRequest } from './gateway-handler';
 import { positiveNumberSetting } from './responses';
 
 let configSpecsRepository: ConfigSpecsRepository | undefined;
-
-type DecisionCacheLoopback = DecisionEntrypoint & DecisionPurger;
-
-function getDecisionCacheLoopback(exports: Cloudflare.Exports): DecisionCacheLoopback {
-	const loopback: unknown = Reflect.get(exports, 'DecisionCacheEntrypoint');
-	if (
-		!loopback ||
-		typeof loopback !== 'object' ||
-		typeof Reflect.get(loopback, 'fetch') !== 'function' ||
-		typeof Reflect.get(loopback, 'purgeApplicationDecisions') !== 'function'
-	) {
-		throw new Error('Decision cache loopback is unavailable');
-	}
-	return loopback as DecisionCacheLoopback;
-}
 
 function getConfigSpecsRepository(env: StatsigEnv): ConfigSpecsRepository {
 	configSpecsRepository ??= new ConfigSpecsRepository(
@@ -47,13 +32,13 @@ function getConfigSpecsRepository(env: StatsigEnv): ConfigSpecsRepository {
 
 export class FeatureGatewayEntrypoint extends WorkerEntrypoint<StatsigEnv> {
 	fetch(request: Request): Promise<Response> {
-		return handleGatewayRequest(request, this.env, getDecisionCacheLoopback(this.ctx.exports));
+		return handleGatewayRequest(request, this.env, this.ctx.exports.DecisionCacheEntrypoint);
 	}
 }
 
-export class DecisionCacheEntrypoint extends WorkerEntrypoint<StatsigEnv> {
+export class DecisionCacheEntrypoint extends WorkerEntrypoint<StatsigEnv, DecisionCacheProps> {
 	fetch(request: Request): Promise<Response> {
-		return handleDecisionRequest(request, this.env, getConfigSpecsRepository(this.env));
+		return handleDecisionRequest(request, this.env, getConfigSpecsRepository(this.env), this.ctx.props);
 	}
 
 	purgeApplicationDecisions(): Promise<CachePurgeResult> {
@@ -71,7 +56,7 @@ export default {
 			request,
 			env,
 			getConfigSpecsRepository(env),
-			getDecisionCacheLoopback(ctx.exports),
+			ctx.exports.DecisionCacheEntrypoint,
 		);
 	},
 } satisfies ExportedHandler<StatsigEnv>;

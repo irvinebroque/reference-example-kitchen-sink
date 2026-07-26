@@ -1,16 +1,20 @@
 import { featureServiceRequestSchema } from '../../shared/feature-contract';
+import type { DecisionCacheProps } from './decision-handler';
 import { noStoreJson } from './responses';
 import { createStatsigUser } from './statsig-user';
-import { canonicalizeUser, createUserCacheKey } from './user-cache-key';
 
-export interface DecisionEntrypoint {
+interface DecisionEntrypoint {
 	fetch(request: Request): Promise<Response>;
+}
+
+export interface DecisionEntrypointFactory {
+	(options: { props: DecisionCacheProps }): DecisionEntrypoint;
 }
 
 export async function handleGatewayRequest(
 	request: Request,
 	env: StatsigEnv,
-	decisionEntrypoint: DecisionEntrypoint,
+	decisionEntrypoint: DecisionEntrypointFactory,
 ): Promise<Response> {
 	const url = new URL(request.url);
 	if (url.pathname !== '/v1/decisions') {
@@ -36,16 +40,9 @@ export async function handleGatewayRequest(
 	}
 
 	const targetingUser = createStatsigUser(parsed.data.subject, env);
-	const cacheKey = await createUserCacheKey(targetingUser, env.USER_CACHE_HMAC_SECRET);
-	const internalRequest = new Request(
-		`https://feature-cache.internal/internal/v1/decisions/${encodeURIComponent(env.APP_ID)}/${cacheKey}`,
-		{
-			headers: {
-				Accept: 'application/json',
-				'X-Statsig-User': canonicalizeUser(targetingUser),
-			},
-			method: 'GET',
-		},
-	);
-	return decisionEntrypoint.fetch(internalRequest);
+	const internalRequest = new Request('https://feature-cache.internal/internal/v1/decisions', {
+		headers: { Accept: 'application/json' },
+		method: 'GET',
+	});
+	return decisionEntrypoint({ props: { targetingUser } }).fetch(internalRequest);
 }
