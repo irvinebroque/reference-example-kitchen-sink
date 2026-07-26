@@ -1,25 +1,25 @@
-import type { Request, Response } from 'express';
 import type { AuthOptions, Session } from 'next-auth';
 import * as NextAuthModule from 'next-auth';
 import * as CredentialsProviderModule from 'next-auth/providers/credentials';
 
 type Callable = (...arguments_: never[]) => unknown;
+export type NextAuthHeaderValue = string | number | readonly string[];
 
 export interface NextAuthApiRequest {
-	body: Request['body'];
+	body: Record<string, unknown> | undefined;
 	cookies: Record<string, string>;
-	headers: Request['headers'];
-	method: Request['method'];
-	query: Request['query'] & { nextauth: string[] };
+	headers: Record<string, string>;
+	method: string;
+	query: Record<string, string | string[]> & { nextauth: string[] };
 }
 
 export interface NextAuthApiResponse {
-	end: Response['end'];
-	getHeader: Response['getHeader'];
-	json: Response['json'];
-	send: Response['send'];
-	setHeader: Response['setHeader'];
-	status: Response['status'];
+	end(value?: unknown): NextAuthApiResponse;
+	getHeader(name: string): NextAuthHeaderValue | undefined;
+	json(value: unknown): NextAuthApiResponse;
+	send(value: unknown): NextAuthApiResponse;
+	setHeader(name: string, value: NextAuthHeaderValue): NextAuthApiResponse;
+	status(code: number): NextAuthApiResponse;
 }
 
 function resolveCommonJsCallable<T extends Callable>(value: unknown, packageName: string): T {

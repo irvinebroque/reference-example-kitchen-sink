@@ -1,14 +1,25 @@
-import { createRequestHandler } from '@react-router/express';
-import express, { type ErrorRequestHandler } from 'express';
-import { RouterContextProvider, type ServerBuild } from 'react-router';
+import { createRequestHandler, RouterContextProvider, type ServerBuild } from 'react-router';
 import { appContext, sessionContext, statsigContext, type AppMetadata } from '../../app/context';
 import { createAuthService } from './auth';
-import { bufferReactRouterResponses } from './compat/react-router-response';
-import { createRequestContextMiddleware } from './request-context';
+import { finalizeAppResponse } from './response';
 import { StatsigService } from './statsig-client';
 
-export function createApp(env: Env): express.Express {
-	const app = express();
+const handleReactRouterRequest = createRequestHandler(
+	() => import('virtual:react-router/server-build') as Promise<ServerBuild>,
+	import.meta.env.MODE,
+);
+
+function errorResponse(error: unknown, appVersion: string): Response {
+	console.error(
+		JSON.stringify({
+			event: 'app_request_error',
+			message: error instanceof Error ? error.message : 'Unknown error',
+		}),
+	);
+	return finalizeAppResponse(Response.json({ error: 'internal_server_error' }, { status: 500 }), appVersion);
+}
+
+export function createApp(env: Env): ExportedHandler<Env> {
 	const auth = createAuthService(env);
 	const statsig = new StatsigService({
 		applicationId: env.APP_ID,
@@ -23,50 +34,42 @@ export function createApp(env: Env): express.Express {
 		statsigClientKey: env.STATSIG_CLIENT_KEY,
 	};
 
-	app.disable('x-powered-by');
-	app.set('trust proxy', true);
-	app.use((_request, response, next) => {
-		response.setHeader('Cache-Control', 'private, no-store');
-		response.setHeader('X-App-Version', env.APP_VERSION);
-		next();
-	});
+	return {
+		async fetch(request) {
+			try {
+				const url = new URL(request.url);
+				if (url.pathname === '/health') {
+					return finalizeAppResponse(
+						Response.json({
+							ok: true,
+							server: 'react-router-fetch',
+							runtime: 'cloudflare-workers',
+							appVersion: env.APP_VERSION,
+						}),
+						env.APP_VERSION,
+					);
+				}
 
-	app.get('/health', (_request, response) => {
-		response.json({
-			ok: true,
-			server: 'express',
-			runtime: 'cloudflare-workers',
-			appVersion: env.APP_VERSION,
-		});
-	});
+				if (url.pathname === '/api/auth' || url.pathname.startsWith('/api/auth/')) {
+					return finalizeAppResponse(await auth.handle(request), env.APP_VERSION);
+				}
 
-	app.use('/api/auth', express.urlencoded({ extended: false, limit: '32kb' }), express.json({ limit: '32kb' }));
-	app.all('/api/auth/*', auth.endpointHandler);
-	app.use(createRequestContextMiddleware(auth, statsig));
-	app.use(
-		bufferReactRouterResponses(
-			createRequestHandler({
-				build: () => import('virtual:react-router/server-build') as Promise<ServerBuild>,
-				getLoadContext(_request, response) {
-					const context = new RouterContextProvider();
-					context.set(appContext, metadata);
-					context.set(sessionContext, response.locals.session);
-					context.set(statsigContext, response.locals.statsig);
-					return context;
-				},
-			}),
-		),
-	);
-
-	const errorHandler: ErrorRequestHandler = (error, _request, response, _next) => {
-		console.error(
-			JSON.stringify({
-				event: 'app_request_error',
-				message: error instanceof Error ? error.message : 'Unknown error',
-			}),
-		);
-		if (!response.headersSent) response.status(500).json({ error: 'internal_server_error' });
+				const { headers: sessionHeaders, session } = await auth.loadSession(request);
+				const assignment = session?.user?.id
+					? await statsig.loadAssignment({
+							id: session.user.id,
+							email: session.user.email,
+						})
+					: null;
+				const context = new RouterContextProvider();
+				context.set(appContext, metadata);
+				context.set(sessionContext, session);
+				context.set(statsigContext, assignment);
+				const response = await handleReactRouterRequest(request, context);
+				return finalizeAppResponse(response, env.APP_VERSION, sessionHeaders);
+			} catch (error) {
+				return errorResponse(error, env.APP_VERSION);
+			}
+		},
 	};
-	app.use(errorHandler);
-	return app;
 }

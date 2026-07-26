@@ -14,7 +14,6 @@ export default async function handleRequest(
 			responseStatusCode = 500;
 		},
 	});
-	await body.allReady;
 	responseHeaders.set('Content-Type', 'text/html; charset=utf-8');
 	responseHeaders.set('Cache-Control', 'private, no-store');
 	return new Response(body, {

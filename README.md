@@ -3,7 +3,7 @@
 This repository is a deployable two-Worker reference for:
 
 - Vite 8 and React Router 8 framework-mode SSR.
-- Express 4 bridged to Workers with `httpServerHandler`.
+- Native Fetch request handling and streaming Web `Response` bodies.
 - Literal `next-auth` 4.24.15 through a narrow compatibility capsule.
 - A private Statsig evaluator reached through a Service Binding.
 - Workers Cache for HMAC-partitioned per-user bootstrap responses.
@@ -32,18 +32,11 @@ per-value and 128 MiB total limits must be validated against the representative
 30 MB ruleset. KV is intentionally not used because
 [Workers KV limits values to 25 MiB](https://developers.cloudflare.com/kv/platform/limits/).
 
-The current workerd Node HTTP bridge also does not deliver incremental
-`ServerResponse.write()` chunks from `@react-router/express` to the outer Fetch
-response. `workers/app/compat/react-router-response.ts` buffers React Router
-responses at that boundary; Express routes mounted before React Router retain
-normal response behavior. The isolated reproduction is in
-`repro/http-server-streaming/`.
-
 ## Architecture
 
 ```mermaid
 flowchart LR
-    Browser --> App["App Worker\nExpress + NextAuth + React Router"]
+    Browser --> App["App Worker\nFetch + NextAuth + React Router"]
     App -->|"HMAC-keyed GET"| Cache["Workers Cache\nEvaluationEntrypoint only"]
     Cache --> Evaluator["Statsig evaluator Worker"]
     Evaluator --> Volatile["Volatile Cache\nraw config specs"]
@@ -85,16 +78,16 @@ prescribed KV lifecycle.
 
 4. Open the displayed URL and use `/api/auth/signin`.
 
-The `next` package only satisfies `next-auth` v4's peer dependency. NextAuth
-interop, request adaptation, response method binding, and cookie preservation
-are isolated in `workers/app/compat/next-auth-bridge.ts`. The exact pinned
-version is covered by a contract test.
+The `next` package only satisfies `next-auth` v4's peer dependency. The
+Fetch-to-NextAuth request and response adaptation, body parsing, and cookie
+preservation are isolated in `workers/app/compat/next-auth-bridge.ts`. The exact
+pinned version is covered by a contract test.
 
 ## Request and cache behavior
 
 For an authenticated SSR request:
 
-1. Express loads the NextAuth session once.
+1. The Fetch entrypoint loads the NextAuth session once.
 2. The app creates a minimized canonical Statsig user.
 3. It creates a versioned HMAC-SHA-256 path key.
 4. It sends one credential-free Service Binding `GET`.
@@ -106,6 +99,11 @@ For an authenticated SSR request:
 8. The app validates and embeds the response in the SSR document.
 9. The browser calls the public `client.dataAdapter.setData()` API followed by
    `initializeSync()`, with all network traffic disabled.
+
+React Router receives the original Fetch `Request` and returns a Web `Response`
+directly. Document bodies produced by `renderToReadableStream()` are returned
+without awaiting `allReady`, and the app-wide header wrapper preserves the body
+stream rather than reading or buffering it.
 
 Successful evaluator responses use a short public TTL, stale-while-revalidate,
 and an application cache tag. App, auth, admin, and error responses are

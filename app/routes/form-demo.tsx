@@ -21,7 +21,7 @@ export default function FormDemo() {
 					<Text variant="heading1" as="h1">
 						Form action
 					</Text>
-					<Text variant="secondary">Post a message through Express into React Router framework mode.</Text>
+					<Text variant="secondary">Post a message through the native Fetch handler into React Router framework mode.</Text>
 				</div>
 			</section>
 

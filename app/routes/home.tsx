@@ -9,7 +9,7 @@ export function meta() {
 		{ title: 'Workers reference application' },
 		{
 			name: 'description',
-			content: 'Two-Worker reference for Express, React Router SSR, NextAuth, Statsig and Workers Cache.',
+			content: 'Two-Worker reference for React Router SSR, NextAuth, Statsig and Workers Cache.',
 		},
 	];
 }
@@ -24,7 +24,7 @@ export default function Home() {
 					<Text variant="heading1" as="h1">
 						Workers reference
 					</Text>
-					<Text variant="secondary">A small reference for Express, React Router SSR, NextAuth, Statsig, and Workers Cache.</Text>
+					<Text variant="secondary">A small reference for React Router SSR, NextAuth, Statsig, and Workers Cache.</Text>
 				</div>
 				<Badge variant={data?.session?.user ? 'success' : 'neutral'} appearance="dot">
 					{data?.session?.user ? 'Authenticated' : 'Anonymous'}
@@ -52,7 +52,7 @@ export default function Home() {
 							Server
 						</Text>
 						<Text as="dd">
-							Express via <code className="inline-code">httpServerHandler</code>
+							React Router via the native <code className="inline-code">fetch()</code> adapter
 						</Text>
 					</dl>
 				</LayerCard>

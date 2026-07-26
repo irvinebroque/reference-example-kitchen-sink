@@ -25,7 +25,6 @@
 		"@cloudflare/vite-plugin": "1.47.0",
 		"@cloudflare/vitest-pool-workers": "^0.12.4",
 		"@react-router/dev": "8.3.0",
-		"@types/express": "5.0.6",
 		"@types/node": "^26.1.1",
 		"@types/react": "19.2.14",
 		"@types/react-dom": "19.2.3",
@@ -38,10 +37,8 @@
 	"dependencies": {
 		"@cloudflare/kumo": "^2.8.0",
 		"@phosphor-icons/react": "^2.1.10",
-		"@react-router/express": "8.3.0",
 		"@statsig/js-client": "3.33.3",
 		"@statsig/serverless-client": "3.33.3",
-		"express": "4.22.2",
 		"next": "16.2.12",
 		"next-auth": "4.24.15",
 		"react": "19.2.8",

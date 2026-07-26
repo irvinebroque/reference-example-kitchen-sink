@@ -3,14 +3,13 @@
 ## Objective
 
 Keep the deployable two-Worker reference architecture while using Statsig's
-official evaluation implementation and isolating unavoidable Node/Express
-compatibility code.
+official evaluation implementation and a native Fetch request path.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    Browser --> App["App Worker\nExpress + NextAuth + React Router"]
+    Browser --> App["App Worker\nFetch + NextAuth + React Router"]
     App -->|"HMAC-keyed GET"| WC["Workers Cache"]
     WC --> Evaluator["Evaluator Worker"]
     Evaluator --> VC["Volatile Cache\nraw config specs"]
@@ -20,7 +19,7 @@ flowchart LR
 
 The application demonstrates:
 
-- Express on Workers through `httpServerHandler`.
+- React Router's native Fetch request handler and streaming Web responses.
 - Literal `next-auth` 4.24.15.
 - React Router framework-mode SSR.
 - A private Service Binding.
@@ -95,8 +94,11 @@ No `@statsig/js-client/src/*` import is used.
 
 ```ts
 interface NextAuthBridge {
-	endpointHandler: RequestHandler;
-	loadSession(req: Request, res: Response): Promise<Session | null>;
+	handle(request: Request): Promise<Response>;
+	loadSession(request: Request): Promise<{
+		headers: Headers;
+		session: Session | null;
+	}>;
 }
 ```
 
@@ -104,22 +106,21 @@ The capsule:
 
 - Resolves the CommonJS exports once at module initialization through one typed,
   single-level interop helper.
-- Constructs a separate explicit NextAuth request object.
-- Never mutates the Express request.
-- Explicitly binds response methods.
+- Converts the incoming Fetch request into a separate explicit NextAuth request.
+- Parses JSON and URL-encoded endpoint request bodies with a 32 KiB limit.
+- Collects NextAuth's Node-shaped response methods into a native Web `Response`.
 - Preserves array-valued `Set-Cookie` headers.
 - Is contract-tested against the exact pinned `next-auth` 4.24.15 package.
 
-The unrelated workerd compatibility experiments live separately in
-`workers/app/compat/`:
+## Native React Router request path
 
-- `depd-workerd.cjs` avoids dynamic code generation in Express's `depd`.
-- `react-router-response.ts` buffers React Router responses until the workerd
-  Node HTTP streaming issue is fixed.
-
-Express routes mounted before React Router retain normal response behavior. The
-standalone streaming reproduction remains independently testable in
-`repro/http-server-streaming/`.
+The application Worker calls `createRequestHandler()` from `react-router`
+directly with the incoming Fetch `Request` and a `RouterContextProvider`.
+Health and NextAuth endpoints are dispatched before React Router. App-wide
+headers and session cookies are applied by constructing a new `Response` around
+the original body stream; the body is never read or buffered. The server entry
+returns React's `ReadableStream` without awaiting `allReady`, enabling shell
+streaming and removing the Node HTTP bridge lifecycle mismatch.
 
 ## Configuration
 
@@ -152,4 +153,4 @@ npx wrangler deploy --dry-run --config wrangler.statsig.jsonc
 Tests cover official server-side evaluation, browser bootstrap initialization,
 absolute TTL behavior, generation replacement, stale fallback, explicit
 invalidation, HMAC cache keys, the pinned NextAuth bridge contract, multiple
-`Set-Cookie` headers, and the buffered React Router response workaround.
+`Set-Cookie` headers, and preservation of incremental response streaming.

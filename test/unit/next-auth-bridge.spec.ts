@@ -1,9 +1,8 @@
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { readFileSync } from 'node:fs';
-import type { NextFunction, Request, Response } from 'express';
 import type { AuthOptions } from 'next-auth';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { createNextAuthBridge } from '../../workers/app/compat/next-auth-bridge';
 import { credentialsProvider } from '../../workers/app/compat/next-auth-interop';
 
@@ -33,69 +32,48 @@ function contractOptions(): AuthOptions {
 	};
 }
 
-function mockResponse() {
-	const headers = new Map<string, string | number | readonly string[]>();
-	let statusCode = 200;
-	let body: unknown;
-	const response = {
-		status(code: number) {
-			statusCode = code;
-			return response;
-		},
-		getHeader(name: string) {
-			return headers.get(name.toLowerCase());
-		},
-		setHeader(name: string, value: string | number | readonly string[]) {
-			headers.set(name.toLowerCase(), value);
-			return response;
-		},
-		send(value: unknown) {
-			body = value;
-			return response;
-		},
-		json(value: unknown) {
-			body = value;
-			return response;
-		},
-		end(value?: unknown) {
-			body = value;
-			return response;
-		},
-	};
-	return {
-		response: response as unknown as Response,
-		read() {
-			return { body, headers, statusCode };
-		},
-	};
-}
-
 describe('NextAuth compatibility capsule', () => {
 	it('is contract-tested against the pinned next-auth version', () => {
 		expect(nextAuthPackage.version).toBe('4.24.15');
 	});
 
-	it('uses a separate request object and preserves multiple Set-Cookie headers', async () => {
+	it('adapts a Fetch request and preserves multiple Set-Cookie headers', async () => {
 		process.env.NEXTAUTH_URL = 'http://localhost:3000';
-		const query = { callbackUrl: '/' };
-		const request = {
-			body: {},
-			headers: { host: 'localhost:3000', cookie: 'existing=value' },
-			method: 'GET',
-			params: { 0: 'csrf' },
-			query,
-		} as unknown as Request;
-		const { response, read } = mockResponse();
-		const next = vi.fn() as NextFunction;
+		const request = new Request('http://localhost:3000/api/auth/csrf?callbackUrl=%2F', {
+			headers: { cookie: 'existing=value' },
+		});
 
-		await createNextAuthBridge(contractOptions()).endpointHandler(request, response, next);
+		const response = await createNextAuthBridge(contractOptions()).handle(request);
 
-		const setCookies = read().headers.get('set-cookie');
-		expect(next).not.toHaveBeenCalled();
-		expect(read().statusCode).toBe(200);
-		expect(setCookies).toBeInstanceOf(Array);
-		expect(setCookies).toHaveLength(2);
-		expect(query).toEqual({ callbackUrl: '/' });
-		expect(request).not.toHaveProperty('cookies');
+		expect(response.status).toBe(200);
+		expect(response.headers.getSetCookie()).toHaveLength(2);
+		expect(await response.json()).toMatchObject({ csrfToken: expect.any(String) });
+		expect(request.url).toBe('http://localhost:3000/api/auth/csrf?callbackUrl=%2F');
+	});
+
+	it('rejects oversized endpoint bodies before buffering them', async () => {
+		const request = new Request('http://localhost:3000/api/auth/callback/credentials', {
+			body: `username=${'a'.repeat(33 * 1024)}`,
+			headers: { 'content-type': 'application/x-www-form-urlencoded' },
+			method: 'POST',
+		});
+
+		const response = await createNextAuthBridge(contractOptions()).handle(request);
+
+		expect(response.status).toBe(413);
+		expect(await response.json()).toEqual({ error: 'request_too_large' });
+	});
+
+	it('returns a client error for malformed JSON bodies', async () => {
+		const request = new Request('http://localhost:3000/api/auth/callback/credentials', {
+			body: '{',
+			headers: { 'content-type': 'application/json' },
+			method: 'POST',
+		});
+
+		const response = await createNextAuthBridge(contractOptions()).handle(request);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toEqual({ error: 'invalid_request_body' });
 	});
 });
