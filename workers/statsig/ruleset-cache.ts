@@ -15,48 +15,9 @@ export interface CachedRuleset {
 	expiresAt: number;
 }
 
-export interface RulesetSource {
-	fetchRuleset(signal: AbortSignal): Promise<string>;
-}
-
 export interface VolatileValueCacheBinding {
-	read<T>(key: string, fallback: () => Promise<{ value: T; expiration: number }>): Promise<T>;
-	delete(key: string): void;
-}
-
-export interface RulesetValueCache {
 	read(key: string, fallback: () => Promise<{ value: CachedRuleset; expiration: number }>): Promise<CachedRuleset>;
 	delete(key: string): void;
-}
-
-export class VolatileRulesetValueCache implements RulesetValueCache {
-	constructor(private readonly binding: VolatileValueCacheBinding) {}
-
-	read(key: string, fallback: () => Promise<{ value: CachedRuleset; expiration: number }>): Promise<CachedRuleset> {
-		return this.binding.read(key, fallback);
-	}
-
-	delete(key: string): void {
-		this.binding.delete(key);
-	}
-}
-
-export class StatsigRulesetSource implements RulesetSource {
-	constructor(private readonly serverSecret: string) {}
-
-	async fetchRuleset(signal: AbortSignal): Promise<string> {
-		const response = await fetch('https://api.statsig.com/v1/download_config_specs', {
-			headers: {
-				Accept: 'application/json',
-				'statsig-api-key': this.serverSecret,
-			},
-			signal,
-		});
-		if (!response.ok) {
-			throw new Error(`Statsig ruleset request failed with ${response.status}`);
-		}
-		return response.text();
-	}
 }
 
 function readGeneration(rawJson: string): string {
@@ -89,8 +50,8 @@ export class RulesetRepository {
 
 	constructor(
 		private readonly serverSecret: string,
-		private readonly source: RulesetSource,
-		private readonly cache: RulesetValueCache,
+		private readonly cache: VolatileValueCacheBinding,
+		private readonly fetchRuleset: (signal: AbortSignal) => Promise<string>,
 		private readonly ttlSeconds: number,
 		private readonly timeoutMs = 8_000,
 	) {}
@@ -119,7 +80,7 @@ export class RulesetRepository {
 			const expiresAt = Date.now() + this.ttlSeconds * 1_000;
 			return {
 				value: {
-					rawJson: await this.source.fetchRuleset(controller.signal),
+					rawJson: await this.fetchRuleset(controller.signal),
 					expiresAt,
 				},
 				expiration: expiresAt,
