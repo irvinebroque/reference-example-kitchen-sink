@@ -1,0 +1,56 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "reference-example-kitchen-sink-statsig",
+	"main": "./workers/statsig/index.ts",
+	"compatibility_date": "2026-07-26",
+	"compatibility_flags": ["nodejs_compat"],
+	"workers_dev": false,
+	"preview_urls": false,
+	"cache": {
+		"enabled": false,
+		"cross_version_cache": false,
+	},
+	"exports": {
+		"default": {
+			"type": "worker",
+			"cache": { "enabled": false },
+		},
+		"EvaluationEntrypoint": {
+			"type": "worker",
+			"cache": { "enabled": true },
+		},
+	},
+	"vars": {
+		"APP_ENVIRONMENT": "production",
+		"EVALUATOR_VERSION": "local",
+		"RULESET_TTL_SECONDS": "300",
+		"BOOTSTRAP_TTL_SECONDS": "60",
+		"BOOTSTRAP_STALE_SECONDS": "300",
+	},
+	"secrets": {
+		"required": ["STATSIG_SERVER_SECRET", "USER_CACHE_HMAC_SECRET", "REFRESH_SECRET"],
+	},
+	"triggers": {
+		"crons": ["*/5 * * * *"],
+	},
+	"env": {
+		"staging": {
+			"name": "reference-example-kitchen-sink-statsig-staging",
+			"vars": {
+				"APP_ENVIRONMENT": "staging",
+				"EVALUATOR_VERSION": "staging",
+				"RULESET_TTL_SECONDS": "60",
+				"BOOTSTRAP_TTL_SECONDS": "30",
+				"BOOTSTRAP_STALE_SECONDS": "60",
+			},
+			"secrets": {
+				"required": ["STATSIG_SERVER_SECRET", "USER_CACHE_HMAC_SECRET", "REFRESH_SECRET"],
+			},
+		},
+	},
+	"observability": {
+		"enabled": true,
+		"head_sampling_rate": 1,
+	},
+	"upload_source_maps": true,
+}

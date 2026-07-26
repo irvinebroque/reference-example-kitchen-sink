@@ -1,0 +1,238 @@
+:root {
+	color-scheme: dark;
+	font-family:
+		Inter,
+		ui-sans-serif,
+		system-ui,
+		-apple-system,
+		BlinkMacSystemFont,
+		'Segoe UI',
+		sans-serif;
+	background: #07111f;
+	color: #e8eef7;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	min-height: 100vh;
+	background:
+		radial-gradient(circle at 15% 5%, #173a5e 0, transparent 34rem), linear-gradient(160deg, #07111f 0%, #0c1728 48%, #101728 100%);
+}
+
+a {
+	color: #8bd5ff;
+}
+
+.site-header {
+	display: grid;
+	grid-template-columns: 1fr auto auto;
+	align-items: center;
+	gap: 2rem;
+	padding: 1.25rem clamp(1rem, 4vw, 4rem);
+	border-bottom: 1px solid #ffffff1a;
+	background: #07111fd9;
+	backdrop-filter: blur(18px);
+	position: sticky;
+	top: 0;
+	z-index: 10;
+}
+
+nav,
+.session-actions {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+}
+
+nav a {
+	color: #b6c8dc;
+	text-decoration: none;
+}
+
+nav a.active {
+	color: white;
+}
+
+main {
+	width: min(1120px, calc(100% - 2rem));
+	margin: 0 auto;
+	padding: clamp(2rem, 6vw, 6rem) 0;
+}
+
+.hero {
+	display: grid;
+	grid-template-columns: 1fr minmax(240px, 0.4fr);
+	gap: 3rem;
+	align-items: end;
+	margin-bottom: 3rem;
+}
+
+h1 {
+	font-size: clamp(2.2rem, 6vw, 5.7rem);
+	line-height: 0.98;
+	letter-spacing: -0.055em;
+	margin: 0.25rem 0 1.25rem;
+	max-width: 15ch;
+}
+
+h2 {
+	margin-top: 0;
+}
+
+p {
+	color: #b6c8dc;
+	line-height: 1.65;
+}
+
+.eyebrow {
+	color: #6ee7b7;
+	text-transform: uppercase;
+	letter-spacing: 0.16em;
+	font-size: 0.75rem;
+	font-weight: 800;
+	margin: 0 0 0.5rem;
+}
+
+.grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 1rem;
+}
+
+.panel,
+.status-card {
+	border: 1px solid #ffffff1a;
+	background: #0f2035cc;
+	border-radius: 18px;
+	padding: clamp(1.25rem, 3vw, 2rem);
+	box-shadow: 0 18px 55px #0005;
+}
+
+.span-two {
+	grid-column: span 2;
+}
+
+.status-card {
+	display: flex;
+	gap: 0.9rem;
+	align-items: center;
+}
+
+.status-card small,
+.status-card strong {
+	display: block;
+}
+
+.status-card small {
+	color: #8ca2ba;
+}
+
+.status-dot {
+	width: 0.75rem;
+	height: 0.75rem;
+	border-radius: 999px;
+	background: #6ee7b7;
+	box-shadow: 0 0 24px #6ee7b7;
+}
+
+dl {
+	display: grid;
+	grid-template-columns: 1fr 1.4fr;
+	gap: 0.75rem;
+	margin: 0;
+}
+
+dt {
+	color: #8ca2ba;
+}
+
+dd {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.gate-list {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+	display: grid;
+	gap: 0.6rem;
+}
+
+.gate-list li {
+	display: flex;
+	justify-content: space-between;
+	padding: 0.8rem 1rem;
+	background: #07111f80;
+	border-radius: 10px;
+}
+
+.enabled {
+	color: #6ee7b7;
+}
+
+.disabled,
+.danger {
+	color: #fda4af;
+}
+
+.stack {
+	display: grid;
+	gap: 1rem;
+	max-width: 30rem;
+}
+
+label {
+	display: grid;
+	gap: 0.5rem;
+}
+
+input,
+button {
+	font: inherit;
+	border-radius: 10px;
+	padding: 0.8rem 1rem;
+}
+
+input {
+	border: 1px solid #ffffff2a;
+	background: #07111f;
+	color: white;
+}
+
+button {
+	border: 0;
+	background: #6ee7b7;
+	color: #07111f;
+	font-weight: 800;
+	cursor: pointer;
+}
+
+pre {
+	overflow: auto;
+	padding: 1rem;
+	border-radius: 10px;
+	background: #030a13;
+	color: #b9e7ff;
+}
+
+@media (max-width: 760px) {
+	.site-header {
+		grid-template-columns: 1fr;
+		gap: 0.75rem;
+		position: static;
+	}
+
+	.hero,
+	.grid {
+		grid-template-columns: 1fr;
+	}
+
+	.span-two {
+		grid-column: auto;
+	}
+}

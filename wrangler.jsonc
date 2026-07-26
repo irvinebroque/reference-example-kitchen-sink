@@ -1,45 +1,56 @@
-/**
- * For more details on how to configure Wrangler, refer to:
- * https://developers.cloudflare.com/workers/wrangler/configuration/
- */
 {
-	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "reference-example-kitchen-sink",
-	"main": "src/index.ts",
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "reference-example-kitchen-sink-app",
+	"main": "./workers/app/server.ts",
 	"compatibility_date": "2026-07-26",
-	"observability": {
-		"enabled": true
+	"compatibility_flags": ["nodejs_compat"],
+	"cache": {
+		"enabled": false,
 	},
+	"exports": {
+		"default": {
+			"type": "worker",
+			"cache": { "enabled": false },
+		},
+	},
+	"services": [
+		{
+			"binding": "STATSIG_SERVICE",
+			"service": "reference-example-kitchen-sink-statsig",
+			"entrypoint": "EvaluationEntrypoint",
+		},
+	],
+	"vars": {
+		"APP_ID": "reference-app",
+		"APP_ENVIRONMENT": "production",
+		"APP_VERSION": "local",
+		"STATSIG_CLIENT_KEY": "client-reference-example",
+	},
+	"secrets": {
+		"required": ["AUTH_SECRET", "NEXTAUTH_URL", "DEMO_USERNAME", "DEMO_PASSWORD_HASH", "USER_CACHE_HMAC_SECRET"],
+	},
+	"previews": {
+		"vars": {
+			"APP_ID": "reference-app",
+			"APP_ENVIRONMENT": "preview",
+			"APP_VERSION": "preview",
+			"STATSIG_CLIENT_KEY": "client-reference-example",
+		},
+		"services": [
+			{
+				"binding": "STATSIG_SERVICE",
+				"service": "reference-example-kitchen-sink-statsig-staging",
+				"entrypoint": "EvaluationEntrypoint",
+			},
+		],
+		"cache": {
+			"enabled": false,
+		},
+	},
+	"observability": {
+		"enabled": true,
+		"head_sampling_rate": 1,
+	},
+	"preview_urls": true,
 	"upload_source_maps": true,
-	"compatibility_flags": [
-		"nodejs_compat"
-	]
-	/**
-	 * Smart Placement
-	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
-	 */
-	// "placement": {  "mode": "smart" }
-	/**
-	 * Bindings
-	 * Bindings allow your Worker to interact with resources on the Cloudflare Developer Platform, including
-	 * databases, object storage, AI inference, real-time communication and more.
-	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/
-	 */
-	/**
-	 * Environment Variables
-	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
-	 * Note: Use secrets to store sensitive data.
-	 * https://developers.cloudflare.com/workers/configuration/secrets/
-	 */
-	// "vars": {  "MY_VARIABLE": "production_value" }
-	/**
-	 * Static Assets
-	 * https://developers.cloudflare.com/workers/static-assets/binding/
-	 */
-	// "assets": {  "directory": "./public/",  "binding": "ASSETS" }
-	/**
-	 * Service Bindings (communicate between multiple Workers)
-	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
-	 */
-	// "services": [  {   "binding": "MY_SERVICE",   "service": "my-service"  } ]
 }

@@ -1,7 +1,9 @@
 # Reference App Implementation Plan
 
 **Research date:** July 26, 2026
-**Status:** Proposed; includes experimental-feature validation gates
+**Status:** Implemented in this repository, except for the explicitly blocked
+Wrangler/workerd MemoryCache prerequisite and the documented incremental
+`ServerResponse.write()` limitation in the current `httpServerHandler` path.
 
 ## Objective
 
@@ -46,14 +48,15 @@ just hide them behind abstractions.
 
 Versions observed on npm on July 26, 2026:
 
-| Package | Current version | Plan |
-| --- | ---: | --- |
-| `vite` | 8.1.5 | Use Vite 8 |
-| `@cloudflare/vite-plugin` | 1.47.0 | Use current compatible release |
-| `react-router` and `@react-router/*` | 8.3.0 | Prefer one aligned React Router 8 version |
-| `react` / `react-dom` | 19.2.8 | Use matching stable versions |
-| `express` | 5.2.1 | Prefer Express 4.22.x initially for the supplied dependency target and adapter stability; validate Express 5 separately |
-| `next-auth` | 4.24.15 | Required literal package; adapt its API-handler interface to Express |
+| Package                              | Current version | Plan                                                                                                                    |
+| ------------------------------------ | --------------: | ----------------------------------------------------------------------------------------------------------------------- |
+| `vite`                               |           8.1.5 | Use Vite 8                                                                                                              |
+| `@cloudflare/vite-plugin`            |          1.47.0 | Use current compatible release                                                                                          |
+| `react-router` and `@react-router/*` |           8.3.0 | Prefer one aligned React Router 8 version                                                                               |
+| `react` / `react-dom`                |          19.2.8 | Use matching stable versions                                                                                            |
+| `express`                            |           5.2.1 | Prefer Express 4.22.x initially for the supplied dependency target and adapter stability; validate Express 5 separately |
+| `next-auth`                          |         4.24.15 | Required literal package; adapt its API-handler interface to Express                                                    |
+| `@statsig/js-client`                 |          3.33.3 | Select and pin a compatible client version for bootstrap wire-protocol tests                                            |
 
 Cloudflare's current React Router guide officially supports React Router 8 and
 SSR with the Vite plugin. The Cloudflare starter config places
@@ -76,6 +79,14 @@ This differs from Cloudflare's default React Router template, which directly
 uses React Router's Fetch API adapter. A build-and-runtime spike must prove the
 Express adapter works with `virtual:react-router/server-build` before the rest
 of the app is built.
+
+Local reference note: `~/src/chatgpt-repro` was inspected on July 26, 2026.
+Its current `main` branch does not contain a `next-auth` dependency or any
+NextAuth usage. It does provide the desired outer Express/React Router pattern
+in `server/index.ts`: Vite middleware plus
+`virtual:react-router/server-build` in development, and the built React Router
+server module in production. Reuse that server shape, then insert the NextAuth
+middleware before the React Router request handler.
 
 ### Literal `next-auth` package integration
 
@@ -138,8 +149,10 @@ Workers Cache:
   Every dynamic or sensitive endpoint must therefore explicitly return
   `Cache-Control: private, no-store`.
 
-The Statsig Worker's default entrypoint will have Workers Cache enabled. The
-application Worker's entrypoint will have it disabled.
+The Statsig Worker will expose a named `EvaluationEntrypoint` with Workers
+Cache enabled. Its default health/admin entrypoint and the application Worker's
+entrypoint will have Workers Cache disabled. The application Service Binding
+will target `EvaluationEntrypoint` explicitly.
 
 ### Volatile Cache status
 
@@ -176,14 +189,60 @@ Expected workers-sdk PR scope:
 - Local-development, dry-run, deployment, Preview, and type-generation tests.
 - Public documentation for configuration, API, limits, and availability.
 
+The workers-sdk repository is already cloned locally at
+`~/src/workers-sdk` (`/Users/brendan/src/workers-sdk`) for this work.
+
 Until that is supported, implement the application-side cache behind a narrow
 interface but do not invent a Wrangler field or rely on `unsafe.bindings`
 without an approved production binding schema.
 
+### Ruleset representation and memory
+
+Caching the raw approximately 30 MB JSON ruleset is not prohibited. If higher
+isolate and Volatile Cache limits are available, start with the simplest
+correct representation and measure it before adding partitioning.
+
+The concern is transient and repeated memory amplification, not merely the
+configured Volatile Cache capacity:
+
+- MemoryCache stores a V8-serialized byte representation and deserializes a new
+  JavaScript value into the receiving isolate on every `read()`.
+- A refresh fallback temporarily holds the fetched response, decoded string or
+  bytes, parsed object graph, normalized evaluator model, and serialized cache
+  value at overlapping points.
+- `JSON.parse()` can retain the approximately 30 MB source string while
+  creating a substantially larger object graph.
+- Concurrent isolates can each hold their own deserialized/compiled evaluator
+  while sharing the process-level MemoryCache bytes.
+- Large values increase serialization/deserialization CPU, garbage collection
+  pressure, and refresh latency even when hard memory limits are raised.
+- `maxValueSize` and `maxTotalValueSize` apply to the serialized value and must
+  be configured above the measured representation size.
+
+Phase 0 should compare three representations using the real ruleset:
+
+1. raw JSON string/bytes in Volatile Cache, parsed and compiled once per
+   isolate;
+2. a normalized serializable evaluator model in Volatile Cache; and
+3. compressed ruleset bytes in Volatile Cache, decompressed on isolate load.
+
+The recommended initial implementation is option 1 because it is easiest to
+validate against the source and Workers Cache should prevent most users from
+reaching evaluator code. Keep an immutable module-level compiled evaluator,
+keyed by ruleset generation, so a warm isolate does not deserialize and parse
+the 30 MB value on every per-user Workers Cache miss.
+
+If raised memory limits make option 1 comfortably safe, retain it. Normalize,
+compress, or partition only when measurements show a material benefit.
+Document the required isolate-memory, Volatile Cache value-size, and total-size
+limits as deployment prerequisites.
+
 ### Custom Statsig evaluator
 
-Do not use a Statsig runtime SDK, including `statsig-node`,
-`@statsig/statsig-node-core`, or the forbidden Cloudflare integration.
+Do not use a Statsig server-side evaluator/runtime SDK in the Statsig Worker,
+including `statsig-node`, `@statsig/statsig-node-core`, or the forbidden
+Cloudflare integration. Using the browser `@statsig/js-client` to consume and
+verify the generated bootstrap payload is in scope.
 
 Build a small, typed evaluator in the Statsig Worker that:
 
@@ -192,20 +251,46 @@ Build a small, typed evaluator in the Statsig Worker that:
 2. validates and normalizes the JSON into a compact internal model;
 3. resolves segments and ID-list-backed conditions needed by the target gates;
 4. evaluates gate rules for one canonical user;
-5. returns a bootstrap/assignment payload containing only the values the
-   application needs; and
+5. emits the Statsig client bootstrap/initialize wire protocol for that user;
+   and
 6. performs no exposure logging in the first version.
 
+The wire-protocol target should be the response accepted by the selected
+`@statsig/js-client` bootstrap initialization path, matching Statsig's
+server-generated initialize response. At minimum, reproduce the applicable
+top-level fields and item shapes for:
+
+- `feature_gates`;
+- `dynamic_configs`;
+- `layer_configs`;
+- `has_updates`;
+- `generator`;
+- `sdkInfo`;
+- `evaluated_keys`;
+- `hash_used`;
+- the evaluated `user`; and
+- rule, group, ID-type, secondary-exposure, experiment, and explicit-parameter
+  metadata present in the source response.
+
+Containers that are valid but unused in the reference ruleset should still be
+present in the correct wire shape, typically as empty objects. Hashing and
+name-key behavior must match the selected client SDK configuration.
+
+This expands the response-format scope, but it does not require exposure-event
+delivery or support for Statsig constructs absent from the actual ruleset.
 Do not claim full Statsig SDK compatibility unless conformance tests prove it.
 Start by inventorying the operators, condition types, segments, ID lists,
 rollouts, and config formats present in the real 30 MB ruleset. Implement that
-explicit compatibility envelope and fail closed or return documented defaults
-for unknown constructs.
+explicit evaluation compatibility envelope and fail closed or return
+documented defaults for unknown constructs.
 
 Use captured ruleset fixtures and golden user-assignment fixtures as the
 behavioral contract. Where possible, generate expected outputs outside the
 Worker with an official Statsig implementation, then compare the custom
-evaluator against them without shipping that SDK in the application.
+evaluator against them without shipping that SDK in the application. Also feed
+the generated response into the selected Statsig browser client in an
+integration test and verify that it initializes without a network request and
+returns the expected gates/configs.
 
 ### Preview limitation
 
@@ -375,7 +460,10 @@ After binding changes, run `wrangler types` and use the generated `Env` types.
 
 - No public route and `workers_dev: false` unless a temporary test endpoint is
   intentionally enabled.
-- `cache.enabled: true`.
+- A named `EvaluationEntrypoint` containing the cacheable `fetch()` handler.
+- Service Bindings target `EvaluationEntrypoint`, not the default export.
+- Workers Cache enabled only for `EvaluationEntrypoint`; default health/admin
+  entrypoint caching disabled.
 - `cross_version_cache: false` initially.
 - Statsig server secret and optional client SDK key as secrets.
 - Volatile Cache binding once the supported configuration is available.
@@ -417,6 +505,26 @@ After binding changes, run `wrangler types` and use the generated `Env` types.
 
 ## Implementation phases
 
+### Prerequisite: workers-sdk/Wrangler MemoryCache support
+
+This is a prerequisite workstream, not an application feature:
+
+- [ ] Confirm the production Workers upload API supports MemoryCache.
+- [ ] Obtain the canonical deployment binding schema and generated runtime
+      type.
+- [ ] Implement and land first-class workers-sdk/Wrangler support in
+      `~/src/workers-sdk`.
+- [ ] Cover Wrangler configuration, validation, local workerd conversion,
+      deploy serialization, `wrangler types`, Previews, and the Cloudflare Vite
+      plugin.
+- [ ] Publish or link supported configuration/API documentation.
+- [ ] Upgrade this reference app to a workers-sdk/Wrangler version containing
+      that support.
+
+Exit criterion: a minimal Worker can use the MemoryCache binding in local Vite
+development, `wrangler deploy --dry-run`, a real deployment, and a Worker
+Preview without `unsafe.bindings` or hand-written environment types.
+
 ### Phase 0: compatibility spikes
 
 - [ ] Build Vite 8 + React Router + Cloudflare Vite plugin.
@@ -433,13 +541,14 @@ After binding changes, run `wrangler types` and use the generated `Env` types.
       supported by the custom evaluator.
 - [ ] Generate golden user-assignment fixtures from an official Statsig
       implementation outside the Worker.
-- [ ] Confirm the production upload API supports MemoryCache and obtain the
-      canonical binding schema.
-- [ ] Implement or contribute the workers-sdk/Wrangler MemoryCache support.
-- [ ] Run a memory spike with a representative 30 MB ruleset.
+- [ ] Reproduce the Statsig bootstrap wire response and initialize the selected
+      browser client from it without a network request.
+- [ ] Run memory/CPU spikes for all three ruleset representations with a
+      representative 30 MB ruleset and the intended raised limits.
 
 Exit criterion: all required libraries run in workerd and the Volatile Cache
-binding has a supported deployment configuration.
+binding is supported through Wrangler. The custom evaluator's output is
+accepted by the selected Statsig browser client and matches golden fixtures.
 
 ### Phase 1: application shell
 
@@ -472,7 +581,9 @@ binding has a supported deployment configuration.
       model.
 - [ ] Implement the Volatile Cache-backed ruleset repository.
 - [ ] Fetch and validate rulesets from the source of truth.
-- [ ] Evaluate the current user and produce the bootstrap payload.
+- [ ] Evaluate the current user and produce the Statsig bootstrap/initialize
+      wire payload.
+- [ ] Match required hashing, metadata, and empty-container behavior.
 - [ ] Add segment, ID-list, rollout, and operator conformance tests for every
       construct present in the production-shaped fixture.
 - [ ] Reject or default unknown constructs explicitly.
@@ -483,7 +594,10 @@ binding has a supported deployment configuration.
 
 - [ ] Add `STATSIG_SERVICE` to the application Worker.
 - [ ] Use exactly one awaited binding `fetch()` per authenticated SSR request.
-- [ ] Enable Workers Cache only on the Statsig Worker.
+- [ ] Point the Service Binding at the named `EvaluationEntrypoint`.
+- [ ] Enable Workers Cache only on `EvaluationEntrypoint`.
+- [ ] Confirm default health/admin entrypoint requests always execute and are
+      never served from Workers Cache.
 - [ ] Set explicit `Cache-Control` on every evaluator response.
 - [ ] Verify `MISS`, `HIT`, expiry, stale revalidation, and request collapse.
 - [ ] Confirm the second request does not invoke evaluator code.
@@ -524,6 +638,7 @@ binding has a supported deployment configuration.
 - Ruleset adapter honors expiry and last-known-good behavior.
 - Gate evaluation matches Statsig fixture expectations.
 - Unknown Statsig operators cannot silently produce an assignment.
+- Bootstrap response hashing and wire fields match golden Statsig responses.
 - The NextAuth adapter preserves multiple `Set-Cookie` headers.
 
 ### Integration
@@ -534,6 +649,8 @@ binding has a supported deployment configuration.
 - Workers Cache hit returns the identical bootstrap payload.
 - Different user/app/context hashes do not share entries.
 - Concurrent misses cause one ruleset fallback/evaluation fill.
+- The generated bootstrap payload initializes the selected Statsig browser
+  client without a network request.
 - Errors and authenticated app responses are not cached.
 - No Cache API globals are used.
 
@@ -551,17 +668,22 @@ Measure with a realistic 30 MB ruleset:
 
 - Worker startup time.
 - Bundle gzip size.
-- Peak isolate memory against the current 128 MB Workers limit.
+- Peak isolate memory against the configured limit, including any approved
+  raised limit.
+- Peak process-level Volatile Cache memory.
+- Transient memory during fetch, parse, normalization, serialization, and
+  deserialization.
 - Ruleset parse/evaluation CPU.
 - Volatile Cache serialized value and total sizes.
+- Warm-isolate module-level evaluator reuse.
 - Cold Workers Cache latency.
 - Warm Workers Cache latency.
 - Bootstrap response size around the expected 30 KB.
 
-Do not ship if parsing/deserializing the ruleset approaches the isolate memory
-limit. If it does, partition the ruleset by application/gate/segment, reduce
-the evaluator representation, or move the oversized state to a supported
-storage/evaluation service.
+Choose and document explicit memory headroom rather than merely fitting below
+the hard limit. If raised limits make raw JSON safe with acceptable CPU and GC
+behavior, raw JSON is an acceptable design. Otherwise, normalize, compress, or
+partition the ruleset by application/gate/segment.
 
 ## Security and privacy requirements
 
@@ -579,17 +701,17 @@ storage/evaluation service.
 
 ## Main risks and decisions
 
-| Risk/decision | Mitigation |
-| --- | --- |
-| Volatile Cache lacks public Wrangler configuration | Confirm production support, then contribute first-class workers-sdk/Wrangler support |
-| 30 MB ruleset may exceed practical memory after parse/deserialization | Benchmark with production-shaped data; partition or compress if needed |
-| Custom Statsig evaluator diverges from Statsig semantics | Define a narrow compatibility envelope and run golden conformance tests |
-| `next-auth` is Next.js-oriented and requires a peer | Narrow Express adapter, exact pin, peer-install decision, and end-to-end auth tests |
-| Express adapter is not Cloudflare's default React Router path | Prove SSR, streaming, actions, assets, and HMR before feature work |
-| Preview cannot bind another Worker Preview | Use a separately deployed staging evaluator service |
-| User-specific cache leakage | HMAC-derived path key, strict canonicalization, contract tests, no header-only partitioning |
-| Stale flags after ruleset update | Short initial TTL, generation metrics, purge/refresh path, documented freshness SLO |
-| Exposure events are omitted | State this explicitly in the demo and keep the response contract extensible |
+| Risk/decision                                                                  | Mitigation                                                                                  |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| Volatile Cache lacks public Wrangler configuration                             | Treat first-class workers-sdk/Wrangler support as a prerequisite                            |
+| 30 MB ruleset creates transient copies and GC/CPU pressure                     | Benchmark raw, normalized, and compressed forms under the intended raised limits            |
+| Custom Statsig evaluator or bootstrap response diverges from Statsig semantics | Run golden evaluator and wire-protocol tests plus real browser-client bootstrap tests       |
+| `next-auth` is Next.js-oriented and requires a peer                            | Narrow Express adapter, exact pin, peer-install decision, and end-to-end auth tests         |
+| Express adapter is not Cloudflare's default React Router path                  | Prove SSR, streaming, actions, assets, and HMR before feature work                          |
+| Preview cannot bind another Worker Preview                                     | Use a separately deployed staging evaluator service                                         |
+| User-specific cache leakage                                                    | HMAC-derived path key, strict canonicalization, contract tests, no header-only partitioning |
+| Stale flags after ruleset update                                               | Short initial TTL, generation metrics, purge/refresh path, documented freshness SLO         |
+| Exposure events are omitted                                                    | State this explicitly in the demo and keep the response contract extensible                 |
 
 ## Definition of done
 
@@ -600,6 +722,10 @@ storage/evaluation service.
 - Each authenticated SSR request performs one Statsig Service Binding fetch.
 - Warm requests are served by Workers Cache without running evaluator code.
 - Cache misses evaluate with a ruleset supplied through Volatile Cache.
+- The returned payload reproduces the selected Statsig bootstrap/initialize
+  wire protocol and initializes the browser client without another network
+  request.
+- Workers Cache applies only to the named Statsig evaluation entrypoint.
 - No Cache API usage exists.
 - The application Worker never receives or parses the full ruleset.
 - Previews use Preview-specific secrets/config and the staging evaluator.
@@ -628,6 +754,11 @@ storage/evaluation service.
 - [`next-auth` package](https://www.npmjs.com/package/next-auth)
 - [NextAuth v4 source](https://github.com/nextauthjs/next-auth/tree/v4)
 - [`@react-router/express`](https://www.npmjs.com/package/@react-router/express)
+- [Statsig client bootstrap initialization](https://docs.statsig.com/client/concepts/initialize/#2-bootstrap-initialization)
+- [Statsig server-generated bootstrap implementation reference](https://github.com/statsig-io/node-js-server-sdk/blob/main/src/Evaluator.ts)
 - [workerd MemoryCache sample](https://github.com/cloudflare/workerd/tree/main/samples/memory-cache)
 - [workerd MemoryCache tests](https://github.com/cloudflare/workerd/blob/main/src/workerd/api/tests/memory-cache-test.js)
 - [workers-sdk generated MemoryCache schema](https://github.com/cloudflare/workers-sdk/blob/main/packages/miniflare/src/runtime/config/workerd.ts)
+
+Local implementation reference:
+`/Users/brendan/src/chatgpt-repro/server/index.ts`.
