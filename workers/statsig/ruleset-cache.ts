@@ -5,7 +5,6 @@ const RULESET_CACHE_KEY = 'statsig-ruleset-v1';
 export interface RulesetSnapshot {
 	generation: string;
 	client: StatsigServerlessClient;
-	loadedAt: number;
 	expiresAt: number;
 	stale: boolean;
 }
@@ -91,14 +90,12 @@ export class RulesetRepository {
 	}
 
 	private install(cached: CachedRuleset): RulesetSnapshot {
-		const loadedAt = Date.now();
 		const generation = readGeneration(cached.rawJson);
 		const client =
 			this.lastKnownGood?.generation === generation ? this.lastKnownGood.client : createClient(this.serverSecret, cached.rawJson);
 		const snapshot = {
 			generation,
 			client,
-			loadedAt,
 			expiresAt: cached.expiresAt,
 			stale: false,
 		};

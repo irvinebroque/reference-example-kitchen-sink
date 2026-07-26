@@ -3,7 +3,7 @@ import {
 	type EvaluatorServiceResponse,
 	type TargetingUser,
 } from '../../shared/statsig-contract';
-import { anonymousKeyPrefix, verifyUserCacheKey } from '../../shared/user-cache-key';
+import { verifyUserCacheKey } from '../../shared/user-cache-key';
 import { noStoreJson, positiveNumberSetting } from './responses';
 import type { RulesetRepository } from './ruleset-cache';
 
@@ -80,7 +80,7 @@ export async function handleEvaluationRequest(request: Request, env: StatsigEnv,
 			JSON.stringify({
 				event: 'statsig_evaluation',
 				applicationId: route.applicationId,
-				userKeyPrefix: anonymousKeyPrefix(route.cacheKey),
+				userKeyPrefix: route.cacheKey.slice(0, 11),
 				rulesetGeneration: snapshot.generation,
 				payloadBytes: new TextEncoder().encode(body).byteLength,
 				durationMs: Math.round(performance.now() - startedAt),
@@ -100,7 +100,7 @@ export async function handleEvaluationRequest(request: Request, env: StatsigEnv,
 			JSON.stringify({
 				event: 'statsig_evaluation_error',
 				applicationId: route.applicationId,
-				userKeyPrefix: anonymousKeyPrefix(route.cacheKey),
+				userKeyPrefix: route.cacheKey.slice(0, 11),
 				message: error instanceof Error ? error.message : 'Unknown error',
 			}),
 		);

@@ -48,9 +48,7 @@ function createAuthOptions(env: Env): AuthOptions {
 	};
 }
 
-export type AuthService = NextAuthBridge;
-
-export function createAuthService(env: Env): AuthService {
+export function createAuthService(env: Env): NextAuthBridge {
 	const options = createAuthOptions(env);
 	return createNextAuthBridge(options);
 }

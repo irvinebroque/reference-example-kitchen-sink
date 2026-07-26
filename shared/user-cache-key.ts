@@ -46,7 +46,3 @@ export async function verifyUserCacheKey(user: TargetingUser, secret: string, ex
 	}
 	return timingSafeEqual(actualBytes, expectedBytes);
 }
-
-export function anonymousKeyPrefix(cacheKey: string): string {
-	return cacheKey.slice(0, 11);
-}
