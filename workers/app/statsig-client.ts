@@ -1,70 +1,62 @@
-import { z } from 'zod';
-import { bootstrapResponseSchema, canonicalUserSchema, type BootstrapResponse, type CanonicalUser } from '../statsig/schemas';
-import { canonicalizeUser, createUserCacheKey } from '../statsig/user-key';
+import {
+	evaluatorServiceResponseSchema,
+	targetingUserSchema,
+	type StatsigAssignment,
+	type TargetingUser,
+} from '../shared/statsig-contract';
+import { canonicalizeUser, createUserCacheKey } from '../shared/user-cache-key';
 
-const serviceResponseSchema = z.object({
-	bootstrap: bootstrapResponseSchema,
-	diagnostics: z.object({
-		evaluatorVersion: z.string(),
-		rulesetGeneration: z.string(),
-		rulesetStale: z.boolean(),
-		evaluatorDurationMs: z.number(),
-		payloadBytes: z.number(),
-	}),
-});
+export type { StatsigAssignment } from '../shared/statsig-contract';
 
-export interface StatsigDiagnostics {
-	cacheStatus: string;
-	evaluatorVersion: string;
-	rulesetGeneration: string;
-	rulesetStale: boolean;
-	evaluatorDurationMs: number;
-	payloadBytes: number;
-	userKeyPrefix: string;
+interface StatsigServiceConfig {
+	applicationId: string;
+	environment: string;
+	hmacSecret: string;
+	service: Service;
 }
 
-export interface StatsigAssignment {
-	bootstrap: BootstrapResponse;
-	diagnostics: StatsigDiagnostics;
-}
+export class StatsigService {
+	constructor(private readonly config: StatsigServiceConfig) {}
 
-export function createCanonicalUser(user: { id: string; email?: string | null }, env: Env): CanonicalUser {
-	return canonicalUserSchema.parse({
-		userID: user.id,
-		email: user.email?.trim().toLowerCase() || undefined,
-		customIDs: {
-			applicationID: env.APP_ID,
-		},
-		custom: {
-			applicationId: env.APP_ID,
-			tenantId: 'reference-tenant',
-		},
-		statsigEnvironment: {
-			tier: env.APP_ENVIRONMENT,
-		},
-	});
-}
-
-export async function loadStatsigAssignment(user: CanonicalUser, env: Env): Promise<StatsigAssignment> {
-	const cacheKey = await createUserCacheKey(user, env.USER_CACHE_HMAC_SECRET);
-	const request = new Request(`https://statsig.internal/v1/bootstrap/${encodeURIComponent(env.APP_ID)}/${cacheKey}`, {
-		method: 'GET',
-		headers: {
-			Accept: 'application/json',
-			'X-Statsig-User': canonicalizeUser(user),
-		},
-	});
-	const response = await env.STATSIG_SERVICE.fetch(request);
-	if (!response.ok) {
-		throw new Error(`Statsig evaluator returned ${response.status}`);
+	createTargetingUser(user: { id: string; email?: string | null }): TargetingUser {
+		return targetingUserSchema.parse({
+			userID: user.id,
+			email: user.email?.trim().toLowerCase() || undefined,
+			customIDs: {
+				applicationID: this.config.applicationId,
+			},
+			custom: {
+				applicationId: this.config.applicationId,
+				tenantId: 'reference-tenant',
+			},
+			statsigEnvironment: {
+				tier: this.config.environment,
+			},
+		});
 	}
-	const parsed = serviceResponseSchema.parse(await response.json());
-	return {
-		bootstrap: parsed.bootstrap,
-		diagnostics: {
-			...parsed.diagnostics,
-			cacheStatus: response.headers.get('cf-cache-status') ?? 'LOCAL/UNKNOWN',
-			userKeyPrefix: cacheKey.slice(0, 11),
-		},
-	};
+
+	async loadAssignment(user: { id: string; email?: string | null }): Promise<StatsigAssignment> {
+		const targetingUser = this.createTargetingUser(user);
+		const cacheKey = await createUserCacheKey(targetingUser, this.config.hmacSecret);
+		const request = new Request(`https://statsig.internal/v1/bootstrap/${encodeURIComponent(this.config.applicationId)}/${cacheKey}`, {
+			method: 'GET',
+			headers: {
+				Accept: 'application/json',
+				'X-Statsig-User': canonicalizeUser(targetingUser),
+			},
+		});
+		const response = await this.config.service.fetch(request);
+		if (!response.ok) {
+			throw new Error(`Statsig evaluator returned ${response.status}`);
+		}
+		const parsed = evaluatorServiceResponseSchema.parse(await response.json());
+		return {
+			bootstrap: parsed.bootstrap,
+			diagnostics: {
+				...parsed.diagnostics,
+				cacheStatus: response.headers.get('cf-cache-status') ?? 'LOCAL/UNKNOWN',
+				userKeyPrefix: cacheKey.slice(0, 11),
+			},
+		};
+	}
 }

@@ -1,5 +1,5 @@
 import { timingSafeEqual } from 'node:crypto';
-import type { CanonicalUser } from './schemas';
+import type { TargetingUser } from './statsig-contract';
 
 const encoder = new TextEncoder();
 
@@ -17,7 +17,7 @@ function sortValue(value: unknown): unknown {
 	return value;
 }
 
-export function canonicalizeUser(user: CanonicalUser): string {
+export function canonicalizeUser(user: TargetingUser): string {
 	return JSON.stringify(sortValue(user));
 }
 
@@ -29,12 +29,12 @@ async function importHmacKey(secret: string): Promise<CryptoKey> {
 	return crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
 }
 
-export async function createUserCacheKey(user: CanonicalUser, secret: string): Promise<string> {
+export async function createUserCacheKey(user: TargetingUser, secret: string): Promise<string> {
 	const signature = await crypto.subtle.sign('HMAC', await importHmacKey(secret), encoder.encode(canonicalizeUser(user)));
 	return `v1_${bytesToHex(signature)}`;
 }
 
-export async function verifyUserCacheKey(user: CanonicalUser, secret: string, expected: string): Promise<boolean> {
+export async function verifyUserCacheKey(user: TargetingUser, secret: string, expected: string): Promise<boolean> {
 	if (!expected.startsWith('v1_')) {
 		return false;
 	}

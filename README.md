@@ -30,9 +30,9 @@ complete until a supported Wrangler release exposes MemoryCache without
 
 The current workerd Node HTTP bridge also does not deliver incremental
 `ServerResponse.write()` chunks from `@react-router/express` to the outer Fetch
-response. `workers/app/server.ts` contains a narrowly scoped body bridge that
-buffers only React Router document responses and passes the completed body to
-`response.end()`. SSR, actions, redirects, errors, hydration, and HMR work
+response. `workers/app/http-body-bridge.ts` contains a narrowly scoped bridge
+that buffers only React Router document responses and passes the completed body
+to `response.end()`. SSR, actions, redirects, errors, hydration, and HMR work
 locally, but true incremental SSR streaming remains a documented runtime
 compatibility gate rather than a completed claim.
 
@@ -104,7 +104,7 @@ public TTL, stale-while-revalidate, and a per-application cache tag.
 ## Statsig compatibility envelope
 
 The evaluator supports the operators and condition types returned by
-`supportedCompatibilityEnvelope()` in `workers/statsig/evaluator.ts`. Unknown
+`supportedCompatibilityEnvelope()` in `workers/statsig/rule-evaluator.ts`. Unknown
 constructs fail closed. It emits the V1 initialize containers and metadata
 required by the pinned `@statsig/js-client` version.
 

@@ -1,11 +1,11 @@
 import { StatsigClient } from '@statsig/js-client';
 import { StatsigEvaluationsDataAdapter } from '@statsig/js-client/src/StatsigEvaluationsDataAdapter';
 import { describe, expect, it } from 'vitest';
-import { evaluateRuleset } from '../../workers/statsig/evaluator';
-import { bootstrapResponseSchema, type CanonicalUser } from '../../workers/statsig/schemas';
+import { bootstrapResponseSchema, type TargetingUser } from '../../workers/shared/statsig-contract';
+import { createBootstrap } from '../../workers/statsig/bootstrap';
 import { rulesetFixture } from '../fixtures/ruleset';
 
-const user: CanonicalUser = {
+const user: TargetingUser = {
 	userID: 'demo:user',
 	email: 'user@example.com',
 	customIDs: { applicationID: 'reference-app' },
@@ -15,7 +15,7 @@ const user: CanonicalUser = {
 
 describe('custom Statsig evaluator', () => {
 	it('evaluates supported constructs and fails unknown constructs closed', async () => {
-		const bootstrap = bootstrapResponseSchema.parse(await evaluateRuleset(rulesetFixture, user, 'reference-app'));
+		const bootstrap = bootstrapResponseSchema.parse(await createBootstrap(rulesetFixture, user, 'reference-app'));
 		expect(bootstrap.feature_gates.reference_gate?.value).toBe(true);
 		expect(bootstrap.feature_gates.unknown_construct_fails_closed?.value).toBe(false);
 		expect(bootstrap.dynamic_configs.welcome_config?.value).toEqual({
@@ -25,7 +25,7 @@ describe('custom Statsig evaluator', () => {
 	});
 
 	it('bootstraps @statsig/js-client without a network request', async () => {
-		const bootstrap = await evaluateRuleset(rulesetFixture, user, 'reference-app');
+		const bootstrap = await createBootstrap(rulesetFixture, user, 'reference-app');
 		const adapter = new StatsigEvaluationsDataAdapter();
 		const client = new StatsigClient(
 			'client-test',

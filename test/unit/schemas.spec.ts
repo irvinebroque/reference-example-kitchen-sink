@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { bootstrapResponseSchema, canonicalUserSchema } from '../../workers/statsig/schemas';
+import { bootstrapResponseSchema, targetingUserSchema } from '../../workers/shared/statsig-contract';
 
 describe('internal schemas', () => {
 	it('rejects malformed users and bootstrap responses', () => {
 		expect(
-			canonicalUserSchema.safeParse({
+			targetingUserSchema.safeParse({
 				userID: '',
 				statsigEnvironment: { tier: '' },
 			}).success,

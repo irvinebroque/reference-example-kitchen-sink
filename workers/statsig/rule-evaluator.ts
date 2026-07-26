@@ -1,28 +1,29 @@
-import type { BootstrapResponse, CanonicalUser, StatsigCondition, StatsigRule, StatsigRuleset, StatsigSpec } from './schemas';
+import type { TargetingUser } from '../shared/statsig-contract';
+import type { StatsigCondition, StatsigRule, StatsigRuleset, StatsigSpec } from './ruleset-schema';
 
-interface EvaluationResult {
+export interface EvaluationResult {
 	matched: boolean;
 	rule: StatsigRule | undefined;
 	value: unknown;
 }
 
-interface EvaluationContext {
+export interface EvaluationContext {
 	ruleset: StatsigRuleset;
-	user: CanonicalUser;
+	user: TargetingUser;
 	applicationId: string;
 	segmentStack: Set<string>;
 }
 
 const encoder = new TextEncoder();
 
-function getUnitId(user: CanonicalUser, idType: string): string | undefined {
+function getUnitId(user: TargetingUser, idType: string): string | undefined {
 	if (idType === 'userID') {
 		return user.userID;
 	}
 	return user.customIDs?.[idType];
 }
 
-function getField(user: CanonicalUser, field: string | null): unknown {
+function getField(user: TargetingUser, field: string | null): unknown {
 	if (!field) return undefined;
 	if (field === 'userID') return user.userID;
 	if (field === 'email') return user.email;
@@ -32,15 +33,11 @@ function getField(user: CanonicalUser, field: string | null): unknown {
 	if (field.startsWith('custom.')) {
 		return user.custom?.[field.slice('custom.'.length)];
 	}
-	return user.custom?.[field] ?? user.customIDs?.[field] ?? (user as Record<string, unknown>)[field];
+	return user.custom?.[field] ?? user.customIDs?.[field];
 }
 
 function asArray(value: unknown): unknown[] {
 	return Array.isArray(value) ? value : [value];
-}
-
-function asComparable(value: unknown): string | number | boolean | undefined {
-	return ['string', 'number', 'boolean'].includes(typeof value) ? (value as string | number | boolean) : undefined;
 }
 
 function compareVersions(left: string, right: string): number {
@@ -152,7 +149,7 @@ async function evaluateCondition(condition: StatsigCondition, context: Evaluatio
 	}
 }
 
-async function evaluateSpec(spec: StatsigSpec, context: EvaluationContext): Promise<EvaluationResult> {
+export async function evaluateSpec(spec: StatsigSpec, context: EvaluationContext): Promise<EvaluationResult> {
 	if (!spec.enabled) {
 		return { matched: false, rule: undefined, value: spec.defaultValue };
 	}
@@ -173,86 +170,12 @@ async function evaluateSpec(spec: StatsigSpec, context: EvaluationContext): Prom
 	return { matched: false, rule: undefined, value: spec.defaultValue };
 }
 
-function configValue(value: unknown): Record<string, unknown> {
-	return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
-}
-
-export async function evaluateRuleset(ruleset: StatsigRuleset, user: CanonicalUser, applicationId: string): Promise<BootstrapResponse> {
-	const context: EvaluationContext = {
+export function createEvaluationContext(ruleset: StatsigRuleset, user: TargetingUser, applicationId: string): EvaluationContext {
+	return {
 		ruleset,
 		user,
 		applicationId,
 		segmentStack: new Set(),
-	};
-	const featureGates: BootstrapResponse['feature_gates'] = {};
-	const dynamicConfigs: BootstrapResponse['dynamic_configs'] = {};
-	const layerConfigs: BootstrapResponse['layer_configs'] = {};
-
-	for (const spec of ruleset.feature_gates) {
-		const result = await evaluateSpec(spec, context);
-		featureGates[spec.name] = {
-			name: spec.name,
-			value: Boolean(result.value),
-			rule_id: result.rule?.id ?? '',
-			id_type: result.rule?.idType ?? spec.idType,
-			secondary_exposures: [],
-			version: spec.version === undefined ? undefined : String(spec.version),
-		};
-	}
-
-	for (const spec of ruleset.dynamic_configs) {
-		const result = await evaluateSpec(spec, context);
-		dynamicConfigs[spec.name] = {
-			name: spec.name,
-			value: configValue(result.value),
-			rule_id: result.rule?.id ?? '',
-			id_type: result.rule?.idType ?? spec.idType,
-			secondary_exposures: [],
-			group: result.rule?.id ?? '',
-			group_name: result.rule?.groupName,
-			is_device_based: spec.idType !== 'userID',
-			is_experiment_active: spec.isActive,
-			is_user_in_experiment: result.rule?.isExperimentGroup,
-			passed: result.matched,
-			explicit_parameters: spec.explicitParameters ?? undefined,
-			version: spec.version === undefined ? undefined : String(spec.version),
-		};
-	}
-
-	for (const spec of ruleset.layer_configs) {
-		const result = await evaluateSpec(spec, context);
-		layerConfigs[spec.name] = {
-			name: spec.name,
-			value: configValue(result.value),
-			rule_id: result.rule?.id ?? '',
-			id_type: result.rule?.idType ?? spec.idType,
-			secondary_exposures: [],
-			group: result.rule?.id ?? '',
-			group_name: result.rule?.groupName,
-			is_device_based: spec.idType !== 'userID',
-			allocated_experiment_name: result.rule?.configDelegate ?? '',
-			explicit_parameters: spec.explicitParameters ?? [],
-			version: spec.version === undefined ? undefined : String(spec.version),
-		};
-	}
-
-	return {
-		feature_gates: featureGates,
-		dynamic_configs: dynamicConfigs,
-		layer_configs: layerConfigs,
-		has_updates: true,
-		time: ruleset.time,
-		generator: 'reference-custom-evaluator',
-		sdkInfo: {
-			sdkType: 'cloudflare-workers-reference',
-			sdkVersion: '1.0.0',
-		},
-		evaluated_keys: {
-			userID: user.userID,
-			customIDs: user.customIDs ?? {},
-		},
-		hash_used: 'none',
-		user,
 	};
 }
 

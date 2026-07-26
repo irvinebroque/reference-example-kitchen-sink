@@ -1,4 +1,4 @@
-import { statsigRulesetSchema, type StatsigRuleset } from './schemas';
+import { statsigRulesetSchema, type StatsigRuleset } from './ruleset-schema';
 
 export interface RulesetSnapshot {
 	generation: string;

@@ -1,6 +1,6 @@
 import { createContext } from 'react-router';
 import type { Session } from 'next-auth';
-import type { StatsigAssignment } from '../workers/app/statsig-client';
+import type { StatsigAssignment } from '../workers/shared/statsig-contract';
 
 export interface AppMetadata {
 	applicationId: string;

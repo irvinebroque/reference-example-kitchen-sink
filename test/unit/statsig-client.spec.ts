@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { createCanonicalUser, loadStatsigAssignment } from '../../workers/app/statsig-client';
-import { evaluateRuleset } from '../../workers/statsig/evaluator';
+import { StatsigService } from '../../workers/app/statsig-client';
+import { createBootstrap } from '../../workers/statsig/bootstrap';
 import { rulesetFixture } from '../fixtures/ruleset';
 
 describe('application Statsig service client', () => {
 	it('makes exactly one credential-free Service Binding request', async () => {
 		let calls = 0;
 		let observedRequest: Request | undefined;
-		const bootstrap = await evaluateRuleset(
+		const bootstrap = await createBootstrap(
 			rulesetFixture,
 			{
 				userID: 'demo:user',
@@ -40,20 +40,13 @@ describe('application Statsig service client', () => {
 				);
 			},
 		};
-		const env = {
-			APP_ID: 'reference-app',
-			APP_ENVIRONMENT: 'production',
-			APP_VERSION: 'test',
-			STATSIG_CLIENT_KEY: 'client-test',
-			AUTH_SECRET: 'auth',
-			NEXTAUTH_URL: 'https://example.com',
-			DEMO_USERNAME: 'demo',
-			DEMO_PASSWORD_HASH: 'unused',
-			USER_CACHE_HMAC_SECRET: 'hmac-secret',
-			STATSIG_SERVICE: service,
-		} as Env;
-		const user = createCanonicalUser({ id: 'demo:user', email: 'user@example.com' }, env);
-		const assignment = await loadStatsigAssignment(user, env);
+		const statsig = new StatsigService({
+			applicationId: 'reference-app',
+			environment: 'production',
+			hmacSecret: 'hmac-secret',
+			service: service as Service,
+		});
+		const assignment = await statsig.loadAssignment({ id: 'demo:user', email: 'user@example.com' });
 		expect(calls).toBe(1);
 		expect(assignment.diagnostics.cacheStatus).toBe('HIT');
 		expect(observedRequest?.headers.has('authorization')).toBe(false);

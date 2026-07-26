@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { canonicalizeUser, createUserCacheKey, verifyUserCacheKey } from '../../workers/statsig/user-key';
-import type { CanonicalUser } from '../../workers/statsig/schemas';
+import type { TargetingUser } from '../../workers/shared/statsig-contract';
+import { canonicalizeUser, createUserCacheKey, verifyUserCacheKey } from '../../workers/shared/user-cache-key';
 
-const user: CanonicalUser = {
+const user: TargetingUser = {
 	userID: 'demo:person',
 	email: 'person@example.com',
 	customIDs: { applicationID: 'reference-app' },
@@ -12,7 +12,7 @@ const user: CanonicalUser = {
 
 describe('canonical user cache key', () => {
 	it('is stable across object key order and never exposes email', async () => {
-		const reordered: CanonicalUser = {
+		const reordered: TargetingUser = {
 			statsigEnvironment: { tier: 'test' },
 			custom: { tenantId: 'tenant', applicationId: 'reference-app' },
 			customIDs: { applicationID: 'reference-app' },
