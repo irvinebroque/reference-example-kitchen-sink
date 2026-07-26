@@ -4,7 +4,8 @@ This repository is a deployable two-Worker reference for:
 
 - Vite 8 and React Router 8 framework-mode SSR.
 - Native Fetch request handling and streaming Web `Response` bodies.
-- Literal `next-auth` 4.24.15 through a narrow compatibility capsule.
+- Literal `next-auth` 4.24.15 through a narrow compatibility capsule, with the
+  direct `@auth/core` Web API documented as an alternative.
 - A vendor-neutral, private feature service reached through a Service Binding.
 - Workers Cache partitioned by per-user `ctx.props`.
 - Statsig as an evaluator-owned implementation detail.
@@ -54,6 +55,28 @@ The evaluator exports three entrypoints:
 
 The gateway invokes the decision entrypoint through
 `ctx.exports.DecisionCacheEntrypoint({ props }).fetch()`.
+
+## Authentication implementation choice
+
+This repository intentionally uses the public `next-auth` 4.24.15
+Next.js-style API behind a small compatibility bridge. That path is useful when
+an application must preserve an existing NextAuth v4 configuration or when the
+integration itself needs to demonstrate compatibility with the pinned v4
+package.
+
+For a new Workers integration, evaluate `@auth/core` before writing this kind of
+bridge. `@auth/core` belongs to the same Auth.js/NextAuth project, but its
+`Auth(request, config)` entrypoint accepts a Web `Request` and returns a Web
+`Response` directly. It can therefore remove the Node/Next.js request-response
+translation layer. The application still needs a small auth-service boundary
+for loading sessions, validating the session response, and propagating any
+`Set-Cookie` headers into the final SSR response.
+
+This repository does not currently import `@auth/core` directly. A project that
+chooses that path should add and pin it as an explicit dependency rather than
+relying on its relationship with `next-auth`. See the
+[NextAuth v4 bridge documentation](./workers/app/compat/README.md) for a
+side-by-side comparison, example shape, tradeoffs, and migration checklist.
 
 ## Feature boundary
 
