@@ -1,5 +1,10 @@
+import { CloudflareLogo } from '@cloudflare/kumo/components/cloudflare-logo';
+import { LayerCard } from '@cloudflare/kumo/components/layer-card';
+import { Link } from '@cloudflare/kumo/components/link';
+import { Text } from '@cloudflare/kumo/components/text';
 import { Links, Meta, NavLink, Outlet, Scripts, ScrollRestoration, useLoaderData, type LoaderFunctionArgs } from 'react-router';
 import { appContext, sessionContext, statsigContext } from './context';
+import '@cloudflare/kumo/styles/standalone';
 import './styles.css';
 
 export function headers() {
@@ -34,7 +39,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 		: '';
 
 	return (
-		<html lang="en">
+		<html lang="en" data-theme="kumo" data-mode="light">
 			<head>
 				<meta charSet="utf-8" />
 				<meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -43,23 +48,31 @@ export function Layout({ children }: { children: React.ReactNode }) {
 			</head>
 			<body>
 				<header className="site-header">
-					<div>
-						<p className="eyebrow">Cloudflare Workers reference</p>
-						<strong>Express + NextAuth + React Router + Statsig</strong>
-					</div>
-					<nav>
-						<NavLink to="/">Overview</NavLink>
-						<NavLink to="/protected">Protected</NavLink>
+					<NavLink to="/" className="brand" aria-label="Workers reference home">
+						<CloudflareLogo variant="glyph" width={30} height={18} aria-hidden="true" />
+						<span>Workers reference</span>
+					</NavLink>
+					<nav aria-label="Primary navigation">
+						<NavLink to="/" end>
+							Overview
+						</NavLink>
+						<NavLink to="/protected">Protected route</NavLink>
 						<NavLink to="/form-demo">Form action</NavLink>
 					</nav>
 					<div className="session-actions">
 						{data.session?.user ? (
 							<>
-								<span>{data.session.user.name}</span>
-								<a href="/api/auth/signout?callbackUrl=/">Sign out</a>
+								<Text as="span" truncate>
+									{data.session.user.name ?? data.session.user.email ?? 'Signed in'}
+								</Text>
+								<Link href="/api/auth/signout?callbackUrl=/" variant="plain">
+									Sign out
+								</Link>
 							</>
 						) : (
-							<a href="/api/auth/signin?callbackUrl=/protected">Sign in</a>
+							<Link href="/api/auth/signin?callbackUrl=/protected" variant="plain">
+								Sign in
+							</Link>
 						)}
 					</div>
 				</header>
@@ -79,9 +92,13 @@ export default function App() {
 export function ErrorBoundary({ error }: { error: unknown }) {
 	const message = error instanceof Error ? error.message : 'Unknown error';
 	return (
-		<section className="panel danger">
-			<h1>Request failed</h1>
-			<p>{message}</p>
+		<section className="page-shell">
+			<LayerCard className="content-card error-card">
+				<Text variant="heading1" as="h1">
+					Request failed
+				</Text>
+				<Text variant="error">{message}</Text>
+			</LayerCard>
 		</section>
 	);
 }
