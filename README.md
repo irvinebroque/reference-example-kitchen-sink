@@ -67,18 +67,26 @@ concepts:
 }
 ```
 
-For each authenticated SSR request, the app makes exactly one
+Authenticated loaders that need decisions call a request-scoped, memoized
+feature loader. Rendering `/` or `/protected` therefore makes at most one
 `FEATURE_SERVICE` request containing only the user's ID and optional normalized
-email. The Statsig Worker adds trusted application, tenant, and environment
+email. Health, auth, sign-in, and anonymous requests do not call the feature
+service. The Statsig Worker adds trusted application, tenant, and environment
 attributes, passes the validated targeting user through typed entrypoint props,
 loads the current config specs, and maps provider results to the application
 contract.
 
+`scripts/guard-feature-boundary.mjs`, which runs as part of `pnpm run check`,
+prevents provider names and imports from appearing under `app/`, `workers/app/`,
+or `shared/`.
+
 ## Cache behavior
 
-The internal cache request uses one fixed URL. Workers Caching includes the
-full normalized targeting user from `ctx.props` in the cache key, so user IDs
-and email addresses never appear in cache URLs or structured logs.
+The internal cache request uses one fixed URL, so user IDs and email addresses
+do not appear in cache URLs. Workers Caching separately includes the full
+normalized targeting user from `ctx.props` in the cache key, which partitions
+cached responses by user. Structured evaluation logs deliberately omit the
+targeting user.
 
 Successful decision responses use:
 
@@ -87,15 +95,19 @@ Cache-Control: public, max-age={DECISIONS_TTL_SECONDS}, stale-while-revalidate={
 ```
 
 App, gateway, health, auth, SSR, validation-error, and evaluation-error
-responses are uncached. The config-specs repository keeps one initialized
-server client per configuration generation, preserves absolute expiry, and
-falls back to its last-known-good snapshot when refresh fails.
+responses are uncached. The config-specs repository reuses its initialized
+server client while the configuration generation is unchanged, preserves the
+absolute expiry returned by the Volatile Cache, and falls back to its
+last-known-good snapshot when refresh fails.
 
 Configuration and decision changes propagate through their bounded TTLs.
-There is no manual invalidation endpoint because isolate-local repository state
-and the entrypoint cache do not share an atomic invalidation boundary.
+This reference intentionally uses TTL convergence instead of a best-effort
+manual purge: isolate-local repository state and the entrypoint cache cannot be
+invalidated together atomically.
 
 ## Local setup
+
+Use Node.js 24 and the repository-pinned pnpm 11 release.
 
 1. Install dependencies:
 
@@ -130,20 +142,155 @@ pnpm run cf-typegen
 pnpm run check
 pnpm run build
 pnpm exec wrangler deploy --dry-run
-pnpm exec wrangler deploy --dry-run --config wrangler.statsig.jsonc
+pnpm exec wrangler deploy --dry-run --config wrangler.statsig.jsonc --env=""
 ```
 
-## Deployment order
+Benchmark a representative production config-specs document before selecting
+Volatile Cache limits:
 
-1. Deploy the staging evaluator.
-2. Configure the evaluator's Statsig server secret.
-3. Push app Preview configuration and auth secrets.
-4. Create or update the app Preview.
-5. Deploy the production evaluator.
-6. Deploy the production app.
+```sh
+pnpm run benchmark:config-specs -- /path/to/config-specs.json
+```
 
-App Previews bind the production deployment of the separate staging evaluator,
-so evaluator changes must reach staging before the app Preview is created.
+## Preview deployments
+
+Cloudflare Workers Previews are the primary change-review workflow for this
+repository. Start with the
+[Workers Previews get-started guide](https://worker-previews-docs-2.preview.developers.cloudflare.com/workers/previews/get-started/).
+The feature is currently private beta in the Wrangler prerelease pinned by this
+repository, so re-check that guide and `pnpm exec wrangler preview --help` when
+updating Wrangler.
+
+A Preview is an isolated branch deployment of the **app Worker**:
+
+- Its stable Preview URL always serves the newest deployment for that Preview.
+- Each update also has an immutable Deployment URL pinned to that exact build.
+- Preview variables, secrets, and bindings are independent from production;
+  they are not inherited automatically.
+- Reusing a Preview name updates the same Preview and preserves its stable URL.
+- Closing the pull request should delete the Preview and its deployments.
+
+The app's `previews` block in `wrangler.jsonc` deliberately binds
+`FEATURE_SERVICE` to
+`reference-example-kitchen-sink-statsig-staging`. A service binding from a
+Preview always invokes the bound Worker's production deployment; it cannot
+target another Worker's Preview. In this architecture, "production deployment
+of the staging evaluator Worker" is the safe shared backend for every app
+Preview. Deploy evaluator changes there before creating or refreshing an app
+Preview that depends on them.
+
+The Preview app uses `AUTH_TRUST_HOST=true`, allowing NextAuth to construct its
+origin from the current Preview request rather than a single static
+`NEXTAUTH_URL`. This is what allows every PR Preview URL to complete the auth
+flow. The Worker must continue to receive trustworthy host and protocol
+headers.
+
+### One-time Cloudflare setup
+
+1. Authenticate Wrangler locally, or create a CI API token with permission to
+   manage this Worker and its Previews.
+2. Configure and deploy the staging evaluator. Required secrets must exist
+   before deployment validation succeeds:
+
+   ```sh
+   pnpm exec wrangler secret put STATSIG_SERVER_SECRET \
+     --config wrangler.statsig.jsonc \
+     --env staging
+   pnpm run deploy:statsig:staging
+   ```
+
+3. Configure the production app secrets and create its production Worker:
+
+   ```sh
+   pnpm exec wrangler secret put AUTH_SECRET
+   pnpm exec wrangler secret put DEMO_USERNAME
+   pnpm exec wrangler secret put DEMO_PASSWORD_HASH
+   pnpm run deploy:app
+   ```
+
+4. Push the app's Preview settings, then configure the three Preview secrets
+   separately from production:
+
+   ```sh
+   pnpm exec wrangler preview settings update
+   pnpm exec wrangler preview secret put AUTH_SECRET
+   pnpm exec wrangler preview secret put DEMO_USERNAME
+   pnpm exec wrangler preview secret put DEMO_PASSWORD_HASH
+   ```
+
+   The pinned Wrangler currently calls the shared Preview configuration
+   `settings`; the linked beta documentation describes this concept as the
+   Preview base configuration. Use `preview settings update` again when the
+   checked-in `previews` block changes and existing/new Previews should receive
+   that base configuration.
+
+5. Add `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as GitHub Actions
+   repository secrets. Commit `.github/workflows/preview.yml` to the default
+   branch.
+6. Consider protecting Preview and Deployment URLs with Cloudflare Access.
+   Preview URLs are otherwise public.
+
+### Pull request workflow
+
+The GitHub Actions workflow uses the deterministic Preview name
+`pr-<pull-request-number>`:
+
+1. Open or reopen a same-repository pull request.
+2. CI installs dependencies, type-checks, tests, verifies the provider boundary,
+   and builds both Workers.
+3. `wrangler preview --name pr-<number>` creates or updates the app Preview.
+4. CI creates or updates one pull-request comment containing:
+   - the stable PR Preview URL for normal review; and
+   - the immutable Deployment URL for comparing a specific commit.
+5. Push another commit. CI updates the same Preview, so reviewers keep using the
+   same stable URL while the immutable URL changes.
+6. Merge or close the pull request. The cleanup job deletes
+   `pr-<number>` and all deployments under it.
+
+GitHub does not expose repository secrets to untrusted fork pull requests, so
+the workflow intentionally skips those PRs. Test a fork locally or move the
+change to a trusted branch before creating a Cloudflare Preview; do not switch
+to `pull_request_target` and execute untrusted code with deployment credentials.
+
+You can run the same lifecycle manually:
+
+```sh
+pnpm run check
+pnpm run build
+pnpm exec wrangler preview --name my-branch
+pnpm exec wrangler preview delete --name my-branch --skip-confirmation
+```
+
+When a branch needs different variables, bindings, or test resources, modify
+the `previews` block for settings that should travel with the branch, or change
+that individual Preview in the dashboard. Previews that point to the same
+external resource share its data. Keep Preview credentials and bindings pointed
+at staging/test systems unless production access is an explicit part of the
+test.
+
+## Production release workflow
+
+1. Deploy evaluator changes to the staging evaluator.
+2. Create or update the app Preview and exercise auth, SSR, feature evaluation,
+   cache hits, stale behavior, and failure paths.
+3. Merge only after the stable Preview represents the approved commit.
+4. Configure the production evaluator secret if this is its first deployment:
+
+   ```sh
+   pnpm exec wrangler secret put STATSIG_SERVER_SECRET \
+     --config wrangler.statsig.jsonc \
+     --env=""
+   ```
+
+5. Deploy the production evaluator before the production app:
+
+   ```sh
+   pnpm run deploy:statsig
+   pnpm run deploy:app
+   ```
+
+The evaluator-first order ensures the app never ships against a feature-service
+contract that its production binding cannot yet satisfy.
 
 ## Troubleshooting
 
@@ -152,8 +299,17 @@ so evaluator changes must reach staging before the app Preview is created.
   `DecisionCacheEntrypoint` with targeting-user `ctx.props`, and the fixed
   inner request contains no cookie or authorization header.
 - Missing auth cookies: verify proxy scheme/host and use HTTPS outside local
-  development.
+  development. For Previews, also confirm `AUTH_TRUST_HOST=true` is present in
+  Preview settings and that no stale `NEXTAUTH_URL` Preview secret overrides
+  the request origin.
+- Preview deploy reports missing bindings or secrets: Previews do not inherit
+  production settings. Re-run `preview settings update`, list Preview secrets,
+  and compare the active Preview settings with `wrangler.jsonc`.
+- Preview app reaches the wrong evaluator: service bindings target the bound
+  Worker's production deployment. Confirm the Preview binding names the
+  separate `reference-example-kitchen-sink-statsig-staging` Worker.
 - Evaluator `503`: inspect structured logs for download, timeout,
   config-specs initialization, or decision evaluation failures.
-- High config-specs memory usage: benchmark representative config specs before
-  deployment.
+- High config-specs memory usage: run `pnpm run benchmark:config-specs` against
+  a representative payload and revisit the configured per-value and total
+  Volatile Cache limits.

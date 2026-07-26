@@ -24,16 +24,18 @@
 		"APP_ID": "reference-app",
 		"APP_ENVIRONMENT": "production",
 		"APP_VERSION": "local",
+		"AUTH_TRUST_HOST": "true",
 		"DEMO_PASSWORD_DISPLAY": "demo-password",
 	},
 	"secrets": {
-		"required": ["AUTH_SECRET", "NEXTAUTH_URL", "DEMO_USERNAME", "DEMO_PASSWORD_HASH"],
+		"required": ["AUTH_SECRET", "DEMO_USERNAME", "DEMO_PASSWORD_HASH"],
 	},
 	"previews": {
 		"vars": {
 			"APP_ID": "reference-app",
 			"APP_ENVIRONMENT": "preview",
 			"APP_VERSION": "preview",
+			"AUTH_TRUST_HOST": "true",
 			"DEMO_PASSWORD_DISPLAY": "demo-password",
 		},
 		"services": [

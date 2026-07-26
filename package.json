@@ -6,7 +6,7 @@
 	"packageManager": "pnpm@11.17.0",
 	"scripts": {
 		"build": "WRANGLER_LOG_PATH=/tmp/wrangler.log react-router build",
-		"check": "pnpm run typecheck && pnpm run test:run",
+		"check": "pnpm run typecheck && pnpm run test:run && pnpm run guard:feature-boundary",
 		"cf-typecheck": "WRANGLER_LOG_PATH=/tmp/wrangler.log wrangler types --include-env=false --check worker-runtime.d.ts && WRANGLER_LOG_PATH=/tmp/wrangler.log wrangler types --include-runtime=false --check worker-configuration.d.ts && WRANGLER_LOG_PATH=/tmp/wrangler.log wrangler types --config wrangler.statsig.jsonc --env-interface StatsigEnv --include-runtime=false --check worker-statsig-configuration.d.ts",
 		"cf-typegen": "WRANGLER_LOG_PATH=/tmp/wrangler.log wrangler types --include-env=false worker-runtime.d.ts && WRANGLER_LOG_PATH=/tmp/wrangler.log wrangler types --include-runtime=false worker-configuration.d.ts && WRANGLER_LOG_PATH=/tmp/wrangler.log wrangler types --config wrangler.statsig.jsonc --env-interface StatsigEnv --include-runtime=false worker-statsig-configuration.d.ts",
 		"deploy": "pnpm run build && wrangler deploy --config wrangler.statsig.jsonc --env=\"\" && wrangler deploy",
@@ -14,7 +14,9 @@
 		"deploy:statsig": "wrangler deploy --config wrangler.statsig.jsonc --env=\"\"",
 		"deploy:statsig:staging": "wrangler deploy --config wrangler.statsig.jsonc --env staging",
 		"dev": "vite",
+		"guard:feature-boundary": "node scripts/guard-feature-boundary.mjs",
 		"hash-password": "node scripts/hash-demo-password.mjs",
+		"benchmark:config-specs": "node scripts/benchmark-config-specs.mjs",
 		"preview": "wrangler preview",
 		"start": "vite",
 		"test": "vitest",
