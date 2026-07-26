@@ -1,5 +1,5 @@
 import { createRequestHandler, RouterContextProvider, type ServerBuild } from 'react-router';
-import { appContext, sessionContext, statsigContext, type AppMetadata } from '../../app/context';
+import { appContext, authContext, demoCredentialsContext, sessionContext, statsigContext, type AppMetadata } from '../../app/context';
 import { createAuthService } from './auth';
 import { finalizeAppResponse } from './response';
 import { StatsigService } from './statsig-client';
@@ -54,7 +54,8 @@ export function createApp(env: Env): ExportedHandler<Env> {
 					return finalizeAppResponse(await auth.handle(request), env.APP_VERSION);
 				}
 
-				const { headers: sessionHeaders, session } = await auth.loadSession(request);
+				const { headers: loadedSessionHeaders, session } = await auth.loadSession(request);
+				const sessionHeaders = url.pathname === '/auth/signin' ? new Headers() : loadedSessionHeaders;
 				const assignment = session?.user?.id
 					? await statsig.loadAssignment({
 							id: session.user.id,
@@ -63,6 +64,11 @@ export function createApp(env: Env): ExportedHandler<Env> {
 					: null;
 				const context = new RouterContextProvider();
 				context.set(appContext, metadata);
+				context.set(authContext, auth);
+				context.set(demoCredentialsContext, {
+					username: env.DEMO_USERNAME,
+					password: env.DEMO_PASSWORD_DISPLAY,
+				});
 				context.set(sessionContext, session);
 				context.set(statsigContext, assignment);
 				const response = await handleReactRouterRequest(request, context);

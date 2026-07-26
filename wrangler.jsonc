@@ -24,6 +24,7 @@
 		"APP_ID": "reference-app",
 		"APP_ENVIRONMENT": "production",
 		"APP_VERSION": "local",
+		"DEMO_PASSWORD_DISPLAY": "demo-password",
 		"STATSIG_CLIENT_KEY": "client-reference-example",
 	},
 	"secrets": {
@@ -34,6 +35,7 @@
 			"APP_ID": "reference-app",
 			"APP_ENVIRONMENT": "preview",
 			"APP_VERSION": "preview",
+			"DEMO_PASSWORD_DISPLAY": "demo-password",
 			"STATSIG_CLIENT_KEY": "client-reference-example",
 		},
 		"services": [

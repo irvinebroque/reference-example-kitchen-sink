@@ -4,5 +4,6 @@ export default [
 	index('routes/home.tsx'),
 	route('protected', 'routes/protected.tsx'),
 	route('form-demo', 'routes/form-demo.tsx'),
+	route('auth/signin', 'routes/auth-signin.tsx'),
 	route('auth/error', 'routes/auth-error.tsx'),
 ] satisfies RouteConfig;

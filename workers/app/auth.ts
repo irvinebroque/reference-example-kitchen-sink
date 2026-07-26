@@ -42,6 +42,7 @@ function createAuthOptions(env: Env): AuthOptions {
 			},
 		},
 		pages: {
+			signIn: '/auth/signin',
 			error: '/auth/error',
 		},
 	};

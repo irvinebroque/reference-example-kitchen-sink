@@ -68,7 +68,8 @@ prescribed KV lifecycle.
    ```
 
    Copy the generated value into `DEMO_PASSWORD_HASH`. Keep `NEXTAUTH_URL`
-   aligned with the local Vite URL.
+   aligned with the local Vite URL. `DEMO_PASSWORD_DISPLAY` is intentionally
+   public and should match the password represented by `DEMO_PASSWORD_HASH`.
 
 3. Start both Workers:
 
