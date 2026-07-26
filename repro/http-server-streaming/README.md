@@ -9,6 +9,58 @@ It removes Express, React, authentication, and the reference application from
 the request path. The remaining code uses `node:http`,
 `httpServerHandler`, and React Router's stream-writing helper.
 
+## Working hypothesis
+
+The hypothesis is that the response body streaming machinery works, but the
+`ServerResponse` lifecycle events do not currently match the lifecycle expected
+by Node stream consumers.
+
+More specifically:
+
+1. The first `ServerResponse.write()` sends the response headers.
+2. workerd creates and returns a Fetch `Response` whose body is a
+   `ReadableStream`.
+3. In the same `_headersSent` handler, workerd marks the `ServerResponse` as
+   closed and emits `close`.
+4. React Router's `writeReadableStreamToWritable()` treats any `close` event
+   before the source stream finishes as an interrupted writable.
+5. React Router stops reading the source stream and destroys the response.
+6. When the delayed source later attempts to enqueue its tail, workerd reports
+   that the `ReadableByteStreamController` is already closed.
+
+The suspected mismatch is therefore not “workerd cannot stream.” The direct
+`ServerResponse.write()` test streams successfully. The suspected mismatch is:
+
+> workerd emits the Node `ServerResponse` `close` event when headers are sent,
+> while React Router and the Node baseline expect that response to remain open
+> until completion or interruption.
+
+This is a hypothesis supported by the reproduction, not yet an upstream
+workerd determination. A possible alternative is that React Router's writable
+monitor is too strict for workerd's Fetch-backed response lifecycle. The Node
+baseline supports React Router's expectation, because the same writer completes
+there without an early `close`.
+
+## Exact location of the suspected issue
+
+| Layer                      | Relevant code                                                                                                                            | Role                                                                                                                                                         |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Reproduction               | [`server.ts`](./server.ts)                                                                                                               | Produces the raw and React Router-managed streams.                                                                                                           |
+| workerd Fetch bridge       | [`src/cloudflare/node.ts`](https://github.com/cloudflare/workerd/blob/main/src/cloudflare/node.ts)                                       | `httpServerHandler` locates the Node-style server registered for a port and forwards the Fetch request.                                                      |
+| workerd response lifecycle | [`src/node/internal/internal_http_server.ts`](https://github.com/cloudflare/workerd/blob/main/src/node/internal/internal_http_server.ts) | Resolves the Fetch `Response` when headers are sent, then currently marks `ServerResponse` closed and emits `close`. This is the primary suspected location. |
+| React Router stream pump   | [`packages/react-router-node/stream.ts`](https://github.com/remix-run/react-router/blob/main/packages/react-router-node/stream.ts)       | Rejects the stream pump when the destination writable emits `close` before the source stream finishes.                                                       |
+
+The important boundary is between the last two rows: workerd emits the event,
+and React Router assigns meaning to it.
+
+## Expected and observed behavior
+
+| Case                      | Expected from Node baseline                           | Observed with pinned workerd                                                                                          |
+| ------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Direct `response.write()` | Shell is observable before `end()`; no early `close`. | Shell is observable before `end()`, but `close` has already fired.                                                    |
+| React Router writer       | Shell and tail are both delivered.                    | Early `close` interrupts the writer before it completes.                                                              |
+| Delayed tail              | Tail is written and the response finishes.            | The interrupted writer leaves the response controller closed; the delayed enqueue produces a closed-controller error. |
+
 ## Where `ServerResponse` comes from
 
 The reproduction creates a server with `node:http.createServer()`. The callback
@@ -113,6 +165,19 @@ React Router's corresponding behavior is in
 Node documents the meaning of the response events in its
 [`ServerResponse` API](https://nodejs.org/api/http.html#class-httpserverresponse).
 
-When the lifecycle behavior is aligned, invert those current-behavior
-assertions so the workerd suite expects the same successful result as the Node
-baseline.
+## What would confirm or reject the hypothesis
+
+The hypothesis is confirmed if changing the workerd response lifecycle so that
+`close` is not emitted from `_headersSent` causes both workerd tests to match
+the Node baseline without changing React Router.
+
+The hypothesis is rejected or incomplete if:
+
+- React Router still stops pumping after the early `close` is removed;
+- the delayed tail still reaches a closed controller for another reason; or
+- an equivalent Node.js test emits `close` at the same point under the same
+  conditions.
+
+When the lifecycle behavior is aligned, invert the current-behavior assertions
+in `workerd.spec.ts` so the workerd suite expects the same successful result as
+the Node baseline.
