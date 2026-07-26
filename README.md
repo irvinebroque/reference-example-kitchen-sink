@@ -6,9 +6,12 @@ This repository is a deployable two-Worker reference for:
 - Native Fetch request handling and streaming Web `Response` bodies.
 - Literal `next-auth` 4.24.15 through a narrow compatibility capsule, with the
   direct `@auth/core` Web API documented as an alternative.
-- A vendor-neutral, private feature service reached through a Service Binding.
-- Workers Cache partitioned by per-user `ctx.props`.
-- Statsig as an evaluator-owned implementation detail.
+- A private feature service, backed by Statsig and reached through a Service
+  Binding.
+- Per-user feature decisions cached in Workers Cache, partitioned by
+  `ctx.props`.
+- Statsig remains inside the feature-service Worker, while the application
+  contract and UI clearly identify the gate being evaluated.
 - Volatile Cache for large raw Statsig config specs.
 - Official server-side evaluation through `@statsig/serverless-client` 3.33.3.
 
@@ -17,7 +20,7 @@ shape, gate name, or config name.
 
 ## Experimental prerequisites
 
-The evaluator uses workerd's process-local Volatile Cache through an
+The feature service uses workerd's process-local Volatile Cache through an
 experimental `unsafe.bindings` entry. Local Vite development depends on the
 Wrangler prerelease built from
 [cloudflare/workers-sdk#14868](https://github.com/cloudflare/workers-sdk/pull/14868).
@@ -31,21 +34,28 @@ total limits must be validated against a representative config-specs payload.
 
 ## Architecture
 
+The application treats `FEATURE_SERVICE` as one service: it supplies an
+authenticated subject and receives application-level feature decisions. It
+does not know about the service's Statsig targeting-user representation,
+configuration loading, or internal cache entrypoint.
+
 ```mermaid
 flowchart LR
     Browser --> App["App Worker\nAuth + React Router SSR"]
-    App -->|"POST neutral subject"| Gateway["FeatureGatewayEntrypoint\nuncached"]
-    Gateway -->|"Fixed GET + targeting-user props"| Cache["Workers Cache"]
-    Cache --> Decisions["DecisionCacheEntrypoint"]
-    Decisions --> Repository["ConfigSpecsRepository"]
-    Repository --> Volatile["Volatile Cache"]
-    Volatile --> Provider["Statsig config-spec API"]
-    Decisions --> SDK["StatsigServerlessClient"]
-    SDK --> Mapping["Application decision mapping"]
-    Mapping --> App
+    App -->|"subject"| Service["Feature service\napplication decisions"]
+    Service --> App
+    Service -.->|"internal implementation"| Statsig["Statsig evaluation + caching"]
 ```
 
-The evaluator exports three entrypoints:
+The service contract is:
+
+```ts
+FeatureServiceRequest -> FeatureServiceResponse
+```
+
+Internally, the feature-service Worker uses two named entrypoints, plus its
+default health handler, to preserve that simple contract while safely caching
+per-user decisions:
 
 | Entrypoint | Purpose | Workers Cache |
 | --- | --- | --- |
@@ -53,8 +63,40 @@ The evaluator exports three entrypoints:
 | `FeatureGatewayEntrypoint` | Validate and normalize neutral subjects | Disabled |
 | `DecisionCacheEntrypoint` | Evaluate and cache application decisions | Enabled |
 
-The gateway invokes the decision entrypoint through
+These entrypoints are not separate application services. The app binds only to
+the feature service's gateway; the gateway invokes the cached decision
+entrypoint internally through
 `ctx.exports.DecisionCacheEntrypoint({ props }).fetch()`.
+
+### Why the service uses `fetch()` instead of RPC methods
+
+The app calls the service with the Fetch API:
+
+```ts
+FEATURE_SERVICE.fetch(
+  new Request("https://feature.internal/v1/decisions", {
+    method: "POST",
+    body: JSON.stringify({ subject: { id, email } }),
+  }),
+);
+```
+
+This is an HTTP-shaped interface over a private Service Binding; it does not
+send the request over the public Internet. The choice is important because
+[Workers Cache](https://developers.cloudflare.com/workers/cache/) applies only
+to `fetch()` invocations. A custom RPC method such as
+`FEATURE_SERVICE.getDecisions(subject)` would bypass Workers Cache and always
+execute the called entrypoint.
+
+The outer `POST` is intentionally uncached so the feature service can validate
+and normalize the subject on every call. The gateway then makes a fixed
+internal `GET` through the cached decision entrypoint. That inner
+`ctx.exports...fetch()` invocation is eligible for Workers Cache, and its
+trusted targeting-user `ctx.props` automatically partitions the cache by user.
+
+An RPC facade could still call the same internal cached `fetch()` entrypoint,
+but it would not eliminate the Fetch-based cache boundary. This reference uses
+`fetch()` end to end instead of adding a second API shape solely as a wrapper.
 
 ## Authentication implementation choice
 
@@ -142,8 +184,8 @@ last-known-good snapshot when refresh fails.
 
 Configuration and decision changes propagate through their bounded TTLs.
 This reference intentionally uses TTL convergence instead of a best-effort
-manual purge: isolate-local repository state and the entrypoint cache cannot be
-invalidated together atomically.
+manual purge: isolate-local repository state and the service's internal
+decision cache cannot be invalidated together atomically.
 
 ## Local setup
 
@@ -164,7 +206,7 @@ Use Node.js 24 and the repository-pinned pnpm 11 release.
 
    Copy the generated value into `DEMO_PASSWORD_HASH`. The shared local
    `.dev.vars` file supplies both auxiliary Workers, but
-   `STATSIG_SERVER_SECRET` belongs only to the evaluator in deployed
+   `STATSIG_SERVER_SECRET` belongs only to the feature service in deployed
    environments.
 
 3. Start both Workers:
@@ -209,8 +251,8 @@ The app's `previews` block in `wrangler.jsonc` deliberately binds
 `reference-example-kitchen-sink-statsig-staging`. A service binding from a
 Preview always invokes the bound Worker's production deployment; it cannot
 target another Worker's Preview. In this architecture, "production deployment
-of the staging evaluator Worker" is the safe shared backend for every app
-Preview. Deploy evaluator changes there before creating or refreshing an app
+of the staging feature-service Worker" is the safe shared backend for every app
+Preview. Deploy feature-service changes there before creating or refreshing an app
 Preview that depends on them.
 
 The Preview app uses `AUTH_TRUST_HOST=true`, allowing NextAuth to construct its
@@ -225,7 +267,7 @@ therefore remain dynamic without trusting arbitrary forwarded headers.
 
 1. Authenticate Wrangler locally, or create a CI API token with permission to
    manage this Worker and its Previews.
-2. Configure and deploy the staging evaluator. Required secrets must exist
+2. Configure and deploy the staging feature service. Required secrets must exist
    before deployment validation succeeds:
 
    ```sh
@@ -312,11 +354,12 @@ test.
 
 ## Production release workflow
 
-1. Deploy evaluator changes to the staging evaluator.
+1. Deploy feature-service changes to the staging feature service.
 2. Create or update the app Preview and exercise auth, SSR, feature evaluation,
    cache hits, stale behavior, and failure paths.
 3. Merge only after the stable Preview represents the approved commit.
-4. Configure the production evaluator secret if this is its first deployment:
+4. Configure the production feature-service secret if this is its first
+   deployment:
 
    ```sh
    pnpm exec wrangler secret put STATSIG_SERVER_SECRET \
@@ -324,14 +367,14 @@ test.
      --env=""
    ```
 
-5. Deploy the production evaluator before the production app:
+5. Deploy the production feature service before the production app:
 
    ```sh
    pnpm run deploy:statsig
    pnpm run deploy:app
    ```
 
-The evaluator-first order ensures the app never ships against a feature-service
+The feature-service-first order ensures the app never ships against a service
 contract that its production binding cannot yet satisfy.
 
 Before accepting production credential traffic, attach the app Worker to a
@@ -342,10 +385,10 @@ protected separately with Cloudflare Access.
 
 ## Troubleshooting
 
-- Repeated `Cf-Cache-Status: MISS`: verify the app targets
-  `FeatureGatewayEntrypoint`, the gateway loopback targets
-  `DecisionCacheEntrypoint` with targeting-user `ctx.props`, and the fixed
-  inner request contains no cookie or authorization header.
+- Repeated `Cf-Cache-Status: MISS`: verify the app's `FEATURE_SERVICE` binding
+  targets the correct feature-service Worker. Internally, confirm its gateway
+  targets `DecisionCacheEntrypoint` with targeting-user `ctx.props` and that
+  the fixed cache request contains no cookie or authorization header.
 - Missing auth cookies: verify proxy scheme/host and use HTTPS outside local
   development. For Previews, also confirm `AUTH_TRUST_HOST=true` is present in
   Preview settings, that no stale `NEXTAUTH_URL` Preview secret overrides the
@@ -353,10 +396,10 @@ protected separately with Cloudflare Access.
 - Preview deploy reports missing bindings or secrets: Previews do not inherit
   production settings. Re-run `preview settings update`, list Preview secrets,
   and compare the active Preview settings with `wrangler.jsonc`.
-- Preview app reaches the wrong evaluator: service bindings target the bound
+- Preview app reaches the wrong feature service: service bindings target the bound
   Worker's production deployment. Confirm the Preview binding names the
   separate `reference-example-kitchen-sink-statsig-staging` Worker.
-- Evaluator `503`: inspect structured logs for download, timeout,
+- Feature-service `503`: inspect structured logs for download, timeout,
   config-specs initialization, or decision evaluation failures.
 - High config-specs memory usage: run `pnpm run benchmark:config-specs` against
   a representative payload and revisit the configured per-value and total

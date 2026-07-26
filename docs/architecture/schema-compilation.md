@@ -91,8 +91,8 @@ Provider schemas are separated from modules with behavior:
 - `targeting-user-contract.ts` owns `targetingUserSchema` and its inferred type.
 - `decision-evaluator.ts` and `statsig-user.ts` import those contracts.
 
-This prevents compiler discovery from executing the evaluator or Statsig client
-initialization paths.
+This prevents compiler discovery from executing the feature evaluator or
+Statsig client initialization paths.
 
 ## Test behavior
 
@@ -171,10 +171,10 @@ Do not run `wrangler deploy --config wrangler.statsig.jsonc`. That path bundles
 the source Worker directly and bypasses `zod-compiler`.
 
 `scripts/build-statsig.mjs` preserves and restores
-`.wrangler/deploy/config.json` around a standalone evaluator build. This avoids
-leaving a generated Statsig redirect behind that could cause a later bare
-`wrangler deploy` to target the wrong Worker. The behavior matches Wrangler's
-generated-configuration model:
+`.wrangler/deploy/config.json` around a standalone feature-service build. This
+avoids leaving a generated Statsig redirect behind that could cause a later
+bare `wrangler deploy` to target the wrong Worker. The behavior matches
+Wrangler's generated-configuration model:
 
 - <https://developers.cloudflare.com/workers/wrangler/configuration/#generated-wrangler-configuration>
 
@@ -205,7 +205,7 @@ the bundle/startup tradeoff.
 2. Read its release notes and option/behavior documentation.
 3. Run the 100% coverage check and both compiled and fallback suites.
 4. Compare generated Worker bundles with the committed baseline above.
-5. Deploy the evaluator to staging and record `startup_time_ms`.
+5. Deploy the feature service to staging and record `startup_time_ms`.
 6. Capture comparable DevTools heap snapshots.
 7. Exercise normalization, validation, cache, and failure paths before
    production rollout.
@@ -224,7 +224,7 @@ To roll back:
 3. Remove the compiler dependency, configuration, coverage check, and fallback
    mode assertion.
 4. Rebuild and run the full verification suite.
-5. Deploy the evaluator first, followed by the app.
+5. Deploy the feature service first, followed by the app.
 
 The source contracts remain ordinary Zod throughout, so rollback does not
 require rewriting application validation code.
