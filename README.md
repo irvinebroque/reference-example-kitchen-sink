@@ -20,6 +20,10 @@ The evaluator uses workerd's process-local `MemoryCache` through an experimental
 `unsafe.bindings` `volatile_cache` entry. Local Vite development depends on the
 Wrangler prerelease built from
 [cloudflare/workers-sdk#14868](https://github.com/cloudflare/workers-sdk/pull/14868).
+The package override in `package.json` also forces the Cloudflare Vite plugin to
+use that PR's Miniflare build; the registry Miniflare release recognizes the
+configuration but does not install the Volatile Cache binding in the auxiliary
+evaluator Worker.
 
 Wrangler does not yet expose this binding in its public schema or generated
 types, so `types/statsig-memory-cache.d.ts` supplies the narrow
@@ -30,8 +34,8 @@ per-value and 128 MiB total limits must be validated against the representative
 
 The current workerd Node HTTP bridge also does not deliver incremental
 `ServerResponse.write()` chunks from `@react-router/express` to the outer Fetch
-response. `workers/app/compat/react-router-document-response.ts` buffers only
-React Router document requests. Data responses and other Express routes retain
+response. `workers/app/compat/react-router-response.ts` buffers React Router
+responses at that boundary; Express routes mounted before React Router retain
 normal response behavior. The isolated reproduction is in
 `repro/http-server-streaming/`.
 

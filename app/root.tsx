@@ -30,7 +30,7 @@ function safeScriptJson(value: unknown): string {
 
 export function Layout({ children }: { children: React.ReactNode }) {
 	const data = useLoaderData<typeof loader>();
-	const bootstrapScript = data.statsig
+	const bootstrapScript = data?.statsig
 		? `window.__REFERENCE_BOOTSTRAP__=${safeScriptJson({
 				clientKey: data.app.statsigClientKey,
 				user: data.statsig.bootstrap.user,
@@ -60,7 +60,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 						<NavLink to="/form-demo">Form action</NavLink>
 					</nav>
 					<div className="session-actions">
-						{data.session?.user ? (
+						{data?.session?.user ? (
 							<>
 								<Text as="span" truncate>
 									{data.session.user.name ?? data.session.user.email ?? 'Signed in'}

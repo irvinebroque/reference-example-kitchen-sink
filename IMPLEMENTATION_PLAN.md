@@ -114,10 +114,10 @@ The unrelated workerd compatibility experiments live separately in
 `workers/app/compat/`:
 
 - `depd-workerd.cjs` avoids dynamic code generation in Express's `depd`.
-- `react-router-document-response.ts` buffers document responses until the
-  workerd Node HTTP streaming issue is fixed.
+- `react-router-response.ts` buffers React Router responses until the workerd
+  Node HTTP streaming issue is fixed.
 
-Data responses and non-document routes retain normal response behavior. The
+Express routes mounted before React Router retain normal response behavior. The
 standalone streaming reproduction remains independently testable in
 `repro/http-server-streaming/`.
 
@@ -133,7 +133,9 @@ The application Worker and evaluator Worker use the same `APP_ID` and
 The Volatile Cache binding remains experimental and is configured with a
 64 MiB maximum value and 128 MiB total capacity for the representative 30 MB
 ruleset. Workers KV is intentionally not used because its documented value
-limit is 25 MiB.
+limit is 25 MiB. `package.json` overrides the Vite plugin's Miniflare dependency
+to the same workers-sdk PR build as Wrangler so the binding is present during
+multi-Worker Vite development.
 
 ## Verification
 
@@ -150,4 +152,4 @@ npx wrangler deploy --dry-run --config wrangler.statsig.jsonc
 Tests cover official server-side evaluation, browser bootstrap initialization,
 absolute TTL behavior, generation replacement, stale fallback, explicit
 invalidation, HMAC cache keys, the pinned NextAuth bridge contract, multiple
-`Set-Cookie` headers, and the buffered React Router document workaround.
+`Set-Cookie` headers, and the buffered React Router response workaround.

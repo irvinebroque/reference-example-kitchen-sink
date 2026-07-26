@@ -3,7 +3,7 @@ import express, { type ErrorRequestHandler } from 'express';
 import { RouterContextProvider, type ServerBuild } from 'react-router';
 import { appContext, sessionContext, statsigContext, type AppMetadata } from '../../app/context';
 import { createAuthService } from './auth';
-import { adaptReactRouterDocumentResponses } from './compat/react-router-document-response';
+import { bufferReactRouterResponses } from './compat/react-router-response';
 import { createRequestContextMiddleware } from './request-context';
 import { StatsigService } from './statsig-client';
 
@@ -44,7 +44,7 @@ export function createApp(env: Env): express.Express {
 	app.all('/api/auth/*', auth.endpointHandler);
 	app.use(createRequestContextMiddleware(auth, statsig));
 	app.use(
-		adaptReactRouterDocumentResponses(
+		bufferReactRouterResponses(
 			createRequestHandler({
 				build: () => import('virtual:react-router/server-build') as Promise<ServerBuild>,
 				getLoadContext(_request, response) {
