@@ -3,7 +3,7 @@ import { LayerCard } from '@cloudflare/kumo/components/layer-card';
 import { Link } from '@cloudflare/kumo/components/link';
 import { Text } from '@cloudflare/kumo/components/text';
 import { Links, Meta, NavLink, Outlet, Scripts, ScrollRestoration, useLoaderData, type LoaderFunctionArgs } from 'react-router';
-import { appContext, sessionContext, statsigContext } from './context';
+import { requestContext } from './context';
 import '@cloudflare/kumo/styles/standalone';
 import './styles.css';
 
@@ -12,11 +12,7 @@ export function headers() {
 }
 
 export function loader({ context }: LoaderFunctionArgs) {
-	return {
-		app: context.get(appContext),
-		session: context.get(sessionContext),
-		statsig: context.get(statsigContext),
-	};
+	return context.get(requestContext);
 }
 
 function safeScriptJson(value: unknown): string {

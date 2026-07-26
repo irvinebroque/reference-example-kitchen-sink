@@ -3,7 +3,7 @@ import { Input } from '@cloudflare/kumo/components/input';
 import { LayerCard } from '@cloudflare/kumo/components/layer-card';
 import { Text } from '@cloudflare/kumo/components/text';
 import { data, redirect, useLoaderData, type LoaderFunctionArgs } from 'react-router';
-import { authContext, demoCredentialsContext, sessionContext } from '../context';
+import { authContext, demoCredentialsContext, requestContext } from '../context';
 
 function callbackUrlFor(request: Request): string {
 	const requestUrl = new URL(request.url);
@@ -21,7 +21,7 @@ function callbackUrlFor(request: Request): string {
 
 export async function loader({ context, request }: LoaderFunctionArgs) {
 	const callbackUrl = callbackUrlFor(request);
-	if (context.get(sessionContext)?.user) throw redirect(callbackUrl);
+	if (context.get(requestContext).session?.user) throw redirect(callbackUrl);
 
 	const auth = context.get(authContext);
 	const csrfResponse = await auth.handle(

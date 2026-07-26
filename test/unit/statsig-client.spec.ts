@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { StatsigService } from '../../workers/app/statsig-client';
+import { loadStatsigAssignment } from '../../workers/app/statsig-client';
 import { createOfficialBootstrap, rulesetFixture } from '../fixtures/ruleset';
 
-describe('application Statsig service client', () => {
+describe('application Statsig assignment loader', () => {
 	it('makes exactly one credential-free Service Binding request', async () => {
 		let calls = 0;
 		let observedRequest: Request | undefined;
@@ -35,13 +35,15 @@ describe('application Statsig service client', () => {
 				);
 			},
 		};
-		const statsig = new StatsigService({
-			applicationId: 'reference-app',
-			environment: 'production',
-			hmacSecret: 'hmac-secret',
-			service: service as Service,
-		});
-		const assignment = await statsig.loadAssignment({ id: 'demo:user', email: 'user@example.com' });
+		const assignment = await loadStatsigAssignment(
+			{
+				applicationId: 'reference-app',
+				environment: 'production',
+				hmacSecret: 'hmac-secret',
+				service: service as Service,
+			},
+			{ id: 'demo:user', email: 'user@example.com' },
+		);
 		expect(calls).toBe(1);
 		expect(assignment.diagnostics.cacheStatus).toBe('HIT');
 		expect(observedRequest?.headers.has('authorization')).toBe(false);

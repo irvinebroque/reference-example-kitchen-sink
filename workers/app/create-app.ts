@@ -1,8 +1,8 @@
 import { createRequestHandler, RouterContextProvider, type ServerBuild } from 'react-router';
-import { appContext, authContext, demoCredentialsContext, sessionContext, statsigContext, type AppMetadata } from '../../app/context';
+import { authContext, demoCredentialsContext, requestContext, type AppMetadata } from '../../app/context';
 import { createAuthService } from './auth';
 import { finalizeAppResponse } from './response';
-import { StatsigService } from './statsig-client';
+import { loadStatsigAssignment } from './statsig-client';
 
 const handleReactRouterRequest = createRequestHandler(
 	() => import('virtual:react-router/server-build') as Promise<ServerBuild>,
@@ -21,12 +21,12 @@ function errorResponse(error: unknown, appVersion: string): Response {
 
 export function createApp(env: Env): ExportedHandler<Env> {
 	const auth = createAuthService(env);
-	const statsig = new StatsigService({
+	const statsigConfig = {
 		applicationId: env.APP_ID,
 		environment: env.APP_ENVIRONMENT,
 		hmacSecret: env.USER_CACHE_HMAC_SECRET,
 		service: env.STATSIG_SERVICE,
-	});
+	};
 	const metadata: AppMetadata = {
 		applicationId: env.APP_ID,
 		environment: env.APP_ENVIRONMENT,
@@ -57,20 +57,22 @@ export function createApp(env: Env): ExportedHandler<Env> {
 				const { headers: loadedSessionHeaders, session } = await auth.loadSession(request);
 				const sessionHeaders = url.pathname === '/auth/signin' ? new Headers() : loadedSessionHeaders;
 				const assignment = session?.user?.id
-					? await statsig.loadAssignment({
+					? await loadStatsigAssignment(statsigConfig, {
 							id: session.user.id,
 							email: session.user.email,
 						})
 					: null;
 				const context = new RouterContextProvider();
-				context.set(appContext, metadata);
+				context.set(requestContext, {
+					app: metadata,
+					session,
+					statsig: assignment,
+				});
 				context.set(authContext, auth);
 				context.set(demoCredentialsContext, {
 					username: env.DEMO_USERNAME,
 					password: env.DEMO_PASSWORD_DISPLAY,
 				});
-				context.set(sessionContext, session);
-				context.set(statsigContext, assignment);
 				const response = await handleReactRouterRequest(request, context);
 				return finalizeAppResponse(response, env.APP_VERSION, sessionHeaders);
 			} catch (error) {

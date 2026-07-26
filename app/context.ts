@@ -18,8 +18,12 @@ export interface DemoCredentials {
 	password: string;
 }
 
-export const appContext = createContext<AppMetadata>();
+export interface AppRequestContext {
+	app: AppMetadata;
+	session: Session | null;
+	statsig: StatsigAssignment | null;
+}
+
+export const requestContext = createContext<AppRequestContext>();
 export const authContext = createContext<AuthRequestHandler>();
 export const demoCredentialsContext = createContext<DemoCredentials>();
-export const sessionContext = createContext<Session | null>(null);
-export const statsigContext = createContext<StatsigAssignment | null>(null);

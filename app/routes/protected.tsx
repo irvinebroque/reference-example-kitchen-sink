@@ -1,16 +1,16 @@
 import { LayerCard } from '@cloudflare/kumo/components/layer-card';
 import { Text } from '@cloudflare/kumo/components/text';
 import { redirect, useLoaderData, type LoaderFunctionArgs } from 'react-router';
-import { sessionContext, statsigContext } from '../context';
+import { requestContext } from '../context';
 
 export function loader({ context }: LoaderFunctionArgs) {
-	const session = context.get(sessionContext);
+	const { session, statsig } = context.get(requestContext);
 	if (!session?.user) {
 		throw redirect('/api/auth/signin?callbackUrl=/protected');
 	}
 	return {
 		user: session.user,
-		statsig: context.get(statsigContext),
+		statsig,
 	};
 }
 
