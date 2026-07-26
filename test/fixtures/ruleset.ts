@@ -1,6 +1,7 @@
-import type { StatsigRuleset } from '../../workers/statsig/ruleset-schema';
+import { compileRuleset } from '../../workers/statsig/ruleset-compiler';
+import type { StatsigRulesetDocument } from '../../workers/statsig/ruleset-schema';
 
-export const rulesetFixture: StatsigRuleset = {
+export const rulesetFixture: StatsigRulesetDocument = {
 	time: 1_725_000_000_000,
 	has_updates: true,
 	feature_gates: [
@@ -106,3 +107,5 @@ export const rulesetFixture: StatsigRuleset = {
 	layer_configs: [],
 	segments: [],
 };
+
+export const compiledRulesetFixture = compileRuleset(rulesetFixture);

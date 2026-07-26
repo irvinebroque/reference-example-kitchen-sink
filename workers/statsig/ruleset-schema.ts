@@ -1,11 +1,17 @@
 import { z } from 'zod';
 
+export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+
+export const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
+	z.union([z.null(), z.boolean(), z.number(), z.string(), z.array(jsonValueSchema), z.record(z.string(), jsonValueSchema)]),
+);
+
 export const statsigConditionSchema = z.object({
 	type: z.string(),
-	targetValue: z.unknown(),
+	targetValue: jsonValueSchema,
 	operator: z.string().nullable(),
 	field: z.string().nullable(),
-	additionalValues: z.record(z.string(), z.unknown()).nullable().optional(),
+	additionalValues: z.record(z.string(), jsonValueSchema).nullable().optional(),
 	idType: z.string().default('userID'),
 });
 
@@ -13,7 +19,7 @@ export const statsigRuleSchema = z.object({
 	name: z.string().default(''),
 	passPercentage: z.number().min(0).max(100).default(100),
 	conditions: z.array(statsigConditionSchema).default([]),
-	returnValue: z.unknown(),
+	returnValue: jsonValueSchema,
 	id: z.string(),
 	salt: z.string().default(''),
 	idType: z.string().default('userID'),
@@ -26,7 +32,7 @@ export const statsigSpecSchema = z.object({
 	name: z.string(),
 	type: z.string(),
 	salt: z.string().default(''),
-	defaultValue: z.unknown(),
+	defaultValue: jsonValueSchema,
 	enabled: z.boolean().default(true),
 	idType: z.string().default('userID'),
 	rules: z.array(statsigRuleSchema).default([]),
@@ -50,7 +56,7 @@ export const statsigRulesetSchema = z.object({
 	app_id: z.string().optional(),
 });
 
-export type StatsigRuleset = z.infer<typeof statsigRulesetSchema>;
-export type StatsigSpec = z.infer<typeof statsigSpecSchema>;
-export type StatsigRule = z.infer<typeof statsigRuleSchema>;
-export type StatsigCondition = z.infer<typeof statsigConditionSchema>;
+export type StatsigRulesetDocument = z.infer<typeof statsigRulesetSchema>;
+export type StatsigSpecDocument = z.infer<typeof statsigSpecSchema>;
+export type StatsigRuleDocument = z.infer<typeof statsigRuleSchema>;
+export type StatsigConditionDocument = z.infer<typeof statsigConditionSchema>;

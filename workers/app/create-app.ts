@@ -3,7 +3,7 @@ import express, { type ErrorRequestHandler } from 'express';
 import { RouterContextProvider, type ServerBuild } from 'react-router';
 import { appContext, sessionContext, statsigContext, type AppMetadata } from '../../app/context';
 import { createAuthService } from './auth';
-import { bridgeNodeWritesToResponseEnd } from './http-body-bridge';
+import { adaptReactRouterDocumentResponses } from './document-response-adapter';
 import { createRequestContextMiddleware } from './request-context';
 import { StatsigService } from './statsig-client';
 
@@ -43,18 +43,19 @@ export function createApp(env: Env): express.Express {
 	app.use('/api/auth', express.urlencoded({ extended: false, limit: '32kb' }), express.json({ limit: '32kb' }));
 	app.all('/api/auth/*', auth.endpointHandler);
 	app.use(createRequestContextMiddleware(auth, statsig));
-	app.use(bridgeNodeWritesToResponseEnd);
 	app.use(
-		createRequestHandler({
-			build: () => import('virtual:react-router/server-build') as Promise<ServerBuild>,
-			getLoadContext(_request, response) {
-				const context = new RouterContextProvider();
-				context.set(appContext, metadata);
-				context.set(sessionContext, response.locals.session);
-				context.set(statsigContext, response.locals.statsig);
-				return context;
-			},
-		}),
+		adaptReactRouterDocumentResponses(
+			createRequestHandler({
+				build: () => import('virtual:react-router/server-build') as Promise<ServerBuild>,
+				getLoadContext(_request, response) {
+					const context = new RouterContextProvider();
+					context.set(appContext, metadata);
+					context.set(sessionContext, response.locals.session);
+					context.set(statsigContext, response.locals.statsig);
+					return context;
+				},
+			}),
+		),
 	);
 
 	const errorHandler: ErrorRequestHandler = (error, _request, response, _next) => {

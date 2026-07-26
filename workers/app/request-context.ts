@@ -1,6 +1,6 @@
 import type { RequestHandler } from 'express';
 import type { Session } from 'next-auth';
-import type { StatsigAssignment } from '../shared/statsig-contract';
+import type { StatsigAssignment } from '../../shared/statsig-contract';
 import type { AuthService } from './auth';
 import type { StatsigService } from './statsig-client';
 

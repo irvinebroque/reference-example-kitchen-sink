@@ -1,6 +1,6 @@
 import { StatsigClient } from '@statsig/js-client';
 import { StatsigEvaluationsDataAdapter } from '@statsig/js-client/src/StatsigEvaluationsDataAdapter';
-import type { ReferenceBootstrap } from '../workers/shared/statsig-contract';
+import type { ReferenceBootstrap } from '../shared/statsig-contract';
 
 declare global {
 	interface Window {

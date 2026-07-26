@@ -1,5 +1,5 @@
 import { timingSafeEqual } from 'node:crypto';
-import { supportedCompatibilityEnvelope } from './rule-evaluator';
+import { supportedCompatibilityEnvelope } from './ruleset-compiler';
 import { noStoreJson } from './responses';
 import type { RulesetRepository } from './ruleset-cache';
 
@@ -31,7 +31,7 @@ export async function handleAdminRequest(request: Request, env: StatsigEnv, repo
 		if (!authorized(request, env.REFRESH_SECRET)) {
 			return noStoreJson({ error: 'unauthorized' }, { status: 401 });
 		}
-		const snapshot = await repository.get(true);
+		const snapshot = await repository.refresh();
 		return noStoreJson({
 			ok: true,
 			rulesetGeneration: snapshot.generation,
@@ -42,7 +42,7 @@ export async function handleAdminRequest(request: Request, env: StatsigEnv, repo
 }
 
 export async function refreshRuleset(repository: RulesetRepository): Promise<void> {
-	const snapshot = await repository.get(true);
+	const snapshot = await repository.refresh();
 	console.log(
 		JSON.stringify({
 			event: 'statsig_ruleset_refresh',

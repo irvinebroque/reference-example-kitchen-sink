@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { StatsigService } from '../../workers/app/statsig-client';
 import { createBootstrap } from '../../workers/statsig/bootstrap';
-import { rulesetFixture } from '../fixtures/ruleset';
+import { compiledRulesetFixture, rulesetFixture } from '../fixtures/ruleset';
 
 describe('application Statsig service client', () => {
 	it('makes exactly one credential-free Service Binding request', async () => {
 		let calls = 0;
 		let observedRequest: Request | undefined;
 		const bootstrap = await createBootstrap(
-			rulesetFixture,
+			compiledRulesetFixture,
 			{
 				userID: 'demo:user',
 				email: 'user@example.com',

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bootstrapResponseSchema, targetingUserSchema } from '../../workers/shared/statsig-contract';
+import { bootstrapResponseSchema, targetingUserSchema } from '../../shared/statsig-contract';
 
 describe('internal schemas', () => {
 	it('rejects malformed users and bootstrap responses', () => {

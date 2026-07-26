@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { TargetingUser } from '../../workers/shared/statsig-contract';
-import { canonicalizeUser, createUserCacheKey, verifyUserCacheKey } from '../../workers/shared/user-cache-key';
+import type { TargetingUser } from '../../shared/statsig-contract';
+import { canonicalizeUser, createUserCacheKey, verifyUserCacheKey } from '../../shared/user-cache-key';
 
 const user: TargetingUser = {
 	userID: 'demo:person',

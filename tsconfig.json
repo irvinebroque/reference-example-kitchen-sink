@@ -44,6 +44,7 @@
 		".react-router/types/**/*",
 		"app/**/*.ts",
 		"app/**/*.tsx",
+		"shared/**/*.ts",
 		"workers/**/*.ts",
 		"types/**/*.d.ts",
 		"react-router.config.ts",

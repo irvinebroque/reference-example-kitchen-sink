@@ -3,8 +3,8 @@ import {
 	evaluatorServiceResponseSchema,
 	parseTargetingUserHeader,
 	type TargetingUser,
-} from '../shared/statsig-contract';
-import { anonymousKeyPrefix, verifyUserCacheKey } from '../shared/user-cache-key';
+} from '../../shared/statsig-contract';
+import { anonymousKeyPrefix, verifyUserCacheKey } from '../../shared/user-cache-key';
 import { createBootstrap } from './bootstrap';
 import { noStoreJson, positiveNumberSetting } from './responses';
 import type { RulesetRepository } from './ruleset-cache';

@@ -3,10 +3,10 @@ import {
 	targetingUserSchema,
 	type StatsigAssignment,
 	type TargetingUser,
-} from '../shared/statsig-contract';
-import { canonicalizeUser, createUserCacheKey } from '../shared/user-cache-key';
+} from '../../shared/statsig-contract';
+import { canonicalizeUser, createUserCacheKey } from '../../shared/user-cache-key';
 
-export type { StatsigAssignment } from '../shared/statsig-contract';
+export type { StatsigAssignment } from '../../shared/statsig-contract';
 
 interface StatsigServiceConfig {
 	applicationId: string;

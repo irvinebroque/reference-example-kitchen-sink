@@ -24,18 +24,20 @@ which connects that binding to Miniflare/workerd.
 
 The prerelease does not add the binding to Wrangler's public configuration
 schema or generated environment types. `types/statsig-memory-cache.d.ts`
-therefore supplies the narrow `read(key, fallback)` type until first-class
-Wrangler support is available. The configured 64 MiB per-value and 128 MiB
-total limits must be validated with the documented representative 30 MB
-benchmark.
+therefore supplies the narrow `read(key, fallback)` and `delete(key)` type until
+first-class Wrangler support is available. Explicit refresh uses the
+experimental `memory_cache_delete` compatibility flag to replace the same
+coalesced cache key used by request-driven loading. The configured 64 MiB
+per-value and 128 MiB total limits must be validated with the documented
+representative 30 MB benchmark.
 
 The current workerd Node HTTP bridge also does not deliver incremental
 `ServerResponse.write()` chunks from `@react-router/express` to the outer Fetch
-response. `workers/app/http-body-bridge.ts` contains a narrowly scoped bridge
-that buffers only React Router document responses and passes the completed body
-to `response.end()`. SSR, actions, redirects, errors, hydration, and HMR work
-locally, but true incremental SSR streaming remains a documented runtime
-compatibility gate rather than a completed claim.
+response. `workers/app/document-response-adapter.ts` wraps only React Router
+document requests, leaving `.data` responses and non-document Express routes on
+the platform's normal response semantics. SSR, actions, redirects, errors,
+hydration, and HMR work locally, but true incremental SSR streaming remains a
+documented runtime compatibility gate rather than a completed claim.
 
 ## Architecture
 
@@ -104,10 +106,13 @@ public TTL, stale-while-revalidate, and a per-application cache tag.
 
 ## Statsig compatibility envelope
 
-The evaluator supports the operators and condition types returned by
-`supportedCompatibilityEnvelope()` in `workers/statsig/rule-evaluator.ts`. Unknown
-constructs fail closed. It emits the V1 initialize containers and metadata
-required by the pinned `@statsig/js-client` version.
+Each downloaded generation is validated and compiled once into discriminated
+conditions, compiled predicates, and a segment map. The evaluator supports the
+operators and condition types registered in
+`workers/statsig/ruleset-compiler.ts`; the diagnostics compatibility envelope is
+derived directly from those registry keys. Unknown or malformed constructs fail
+closed. It emits the V1 initialize containers and metadata required by the
+pinned `@statsig/js-client` version.
 
 Before using a real project:
 
