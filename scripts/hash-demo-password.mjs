@@ -2,7 +2,7 @@ import { pbkdf2Sync, randomBytes } from 'node:crypto';
 
 const password = process.argv[2];
 if (!password) {
-	console.error('Usage: npm run hash-password -- <password>');
+	console.error('Usage: pnpm run hash-password -- <password>');
 	process.exit(1);
 }
 

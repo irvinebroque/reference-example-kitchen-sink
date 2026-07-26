@@ -3,13 +3,14 @@
 	"version": "0.0.0",
 	"private": true,
 	"type": "module",
+	"packageManager": "pnpm@11.17.0",
 	"scripts": {
 		"build": "WRANGLER_LOG_PATH=/tmp/wrangler.log react-router build",
-		"check": "npm run typecheck && npm run test:run",
+		"check": "pnpm run typecheck && pnpm run test:run",
 		"cf-typecheck": "WRANGLER_LOG_PATH=/tmp/wrangler.log wrangler types --include-env=false --check worker-runtime.d.ts && WRANGLER_LOG_PATH=/tmp/wrangler.log wrangler types --include-runtime=false --check worker-configuration.d.ts && WRANGLER_LOG_PATH=/tmp/wrangler.log wrangler types --config wrangler.statsig.jsonc --env-interface StatsigEnv --include-runtime=false --check worker-statsig-configuration.d.ts",
 		"cf-typegen": "WRANGLER_LOG_PATH=/tmp/wrangler.log wrangler types --include-env=false worker-runtime.d.ts && WRANGLER_LOG_PATH=/tmp/wrangler.log wrangler types --include-runtime=false worker-configuration.d.ts && WRANGLER_LOG_PATH=/tmp/wrangler.log wrangler types --config wrangler.statsig.jsonc --env-interface StatsigEnv --include-runtime=false worker-statsig-configuration.d.ts",
-		"deploy": "npm run build && wrangler deploy --config wrangler.statsig.jsonc --env=\"\" && wrangler deploy",
-		"deploy:app": "npm run build && wrangler deploy",
+		"deploy": "pnpm run build && wrangler deploy --config wrangler.statsig.jsonc --env=\"\" && wrangler deploy",
+		"deploy:app": "pnpm run build && wrangler deploy",
 		"deploy:statsig": "wrangler deploy --config wrangler.statsig.jsonc --env=\"\"",
 		"deploy:statsig:staging": "wrangler deploy --config wrangler.statsig.jsonc --env staging",
 		"dev": "vite",
@@ -18,17 +19,18 @@
 		"start": "vite",
 		"test": "vitest",
 		"test:run": "vitest run",
-		"typecheck": "WRANGLER_LOG_PATH=/tmp/wrangler.log react-router typegen && npm run cf-typecheck && tsc --project tsconfig.json && tsc --project workers/app/tsconfig.json && tsc --project workers/statsig/tsconfig.json"
+		"typecheck": "WRANGLER_LOG_PATH=/tmp/wrangler.log react-router typegen && pnpm run cf-typecheck && tsc --project tsconfig.json && tsc --project workers/app/tsconfig.json && tsc --project workers/statsig/tsconfig.json"
 	},
 	"devDependencies": {
 		"@cloudflare/vite-plugin": "1.47.0",
+		"@cloudflare/vitest-pool-workers": "^0.18.8",
 		"@react-router/dev": "8.3.0",
 		"@types/node": "^26.1.1",
 		"@types/react": "19.2.14",
 		"@types/react-dom": "19.2.3",
 		"typescript": "^5.5.2",
 		"vite": "8.1.5",
-		"vitest": "~3.2.0",
+		"vitest": "^4.1.10",
 		"wrangler": "https://pkg.pr.new/wrangler@14868"
 	},
 	"dependencies": {
@@ -40,10 +42,5 @@
 		"react-dom": "19.2.8",
 		"react-router": "8.3.0",
 		"zod": "4.4.3"
-	},
-	"overrides": {
-		"@cloudflare/vite-plugin": {
-			"miniflare": "https://pkg.pr.new/cloudflare/workers-sdk/miniflare@bd9b599"
-		}
 	}
 }

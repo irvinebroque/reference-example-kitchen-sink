@@ -100,14 +100,14 @@ and the entrypoint cache do not share an atomic invalidation boundary.
 1. Install dependencies:
 
    ```sh
-   npm ci
+   pnpm install --frozen-lockfile
    ```
 
 2. Create local secrets:
 
    ```sh
    cp .dev.vars.example .dev.vars
-   npm run hash-password -- 'choose-a-demo-password'
+   pnpm run hash-password -- 'choose-a-demo-password'
    ```
 
    Copy the generated value into `DEMO_PASSWORD_HASH`. The shared local
@@ -118,7 +118,7 @@ and the entrypoint cache do not share an atomic invalidation boundary.
 3. Start both Workers:
 
    ```sh
-   npm run dev
+   pnpm run dev
    ```
 
 4. Open the displayed URL and use `/api/auth/signin`.
@@ -126,11 +126,11 @@ and the entrypoint cache do not share an atomic invalidation boundary.
 ## Verification
 
 ```sh
-npm run cf-typegen
-npm run check
-npm run build
-npx wrangler deploy --dry-run
-npx wrangler deploy --dry-run --config wrangler.statsig.jsonc
+pnpm run cf-typegen
+pnpm run check
+pnpm run build
+pnpm exec wrangler deploy --dry-run
+pnpm exec wrangler deploy --dry-run --config wrangler.statsig.jsonc
 ```
 
 ## Deployment order

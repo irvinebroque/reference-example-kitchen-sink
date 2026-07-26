@@ -1,0 +1,10 @@
+blockExoticSubdeps: false # Required while using pkg.pr.new Workers SDK builds.
+strictPeerDependencies: true
+
+overrides:
+  '@cloudflare/vite-plugin>miniflare': https://pkg.pr.new/cloudflare/workers-sdk/miniflare@bd9b599
+
+allowBuilds:
+  esbuild: true
+  sharp: true
+  workerd: true
