@@ -7,10 +7,6 @@ import { requestContext } from './context';
 import '@cloudflare/kumo/styles/standalone';
 import './styles.css';
 
-export function headers() {
-	return { 'Cache-Control': 'private, no-store' };
-}
-
 export function loader({ context }: LoaderFunctionArgs) {
 	return context.get(requestContext);
 }
