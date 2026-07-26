@@ -4,6 +4,12 @@ import type { ConfigSpecsRepository } from './config-specs-repository';
 
 const encoder = new TextEncoder();
 
+export interface DecisionPurger {
+	purgeApplicationDecisions(): Promise<CachePurgeResult>;
+}
+
+type InvalidatableRepository = Pick<ConfigSpecsRepository, 'invalidate'>;
+
 function authorized(request: Request, secret: string): boolean {
 	const supplied = request.headers.get('authorization')?.replace(/^Bearer /, '');
 	if (!supplied) return false;
@@ -15,7 +21,8 @@ function authorized(request: Request, secret: string): boolean {
 export async function handleAdminRequest(
 	request: Request,
 	env: StatsigEnv,
-	configSpecsRepository: ConfigSpecsRepository,
+	configSpecsRepository: InvalidatableRepository,
+	decisionPurger: DecisionPurger,
 ): Promise<Response> {
 	const pathname = new URL(request.url).pathname;
 	if (pathname === '/health') {
@@ -32,17 +39,54 @@ export async function handleAdminRequest(
 		if (!authorized(request, env.INVALIDATION_SECRET)) {
 			return noStoreJson({ error: 'unauthorized' }, { status: 401 });
 		}
-		configSpecsRepository.invalidate();
+		try {
+			configSpecsRepository.invalidate();
+		} catch (error) {
+			return noStoreJson(
+				{
+					ok: false,
+					rulesetInvalidated: false,
+					decisionsPurged: false,
+					error: error instanceof Error ? error.message : 'ruleset_invalidation_failed',
+				},
+				{ status: 500 },
+			);
+		}
 		console.log(
 			JSON.stringify({
 				event: 'statsig_config_specs_invalidation',
 				applicationId: env.APP_ID,
 			}),
 		);
-		return noStoreJson({
-			ok: true,
-			configSpecsInvalidated: true,
-		});
+		try {
+			const purge = await decisionPurger.purgeApplicationDecisions();
+			if (!purge.success) {
+				return noStoreJson(
+					{
+						ok: false,
+						rulesetInvalidated: true,
+						decisionsPurged: false,
+						errors: purge.errors,
+					},
+					{ status: 502 },
+				);
+			}
+			return noStoreJson({
+				ok: true,
+				rulesetInvalidated: true,
+				decisionsPurged: true,
+			});
+		} catch (error) {
+			return noStoreJson(
+				{
+					ok: false,
+					rulesetInvalidated: true,
+					decisionsPurged: false,
+					error: error instanceof Error ? error.message : 'decision_purge_failed',
+				},
+				{ status: 502 },
+			);
+		}
 	}
 	return noStoreJson({ error: 'not_found' }, { status: 404 });
 }

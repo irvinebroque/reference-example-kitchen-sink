@@ -11,24 +11,8 @@ export function loader({ context }: LoaderFunctionArgs) {
 	return context.get(requestContext);
 }
 
-function safeScriptJson(value: unknown): string {
-	return JSON.stringify(value)
-		.replaceAll('<', '\\u003c')
-		.replaceAll('>', '\\u003e')
-		.replaceAll('&', '\\u0026')
-		.replaceAll('\u2028', '\\u2028')
-		.replaceAll('\u2029', '\\u2029');
-}
-
 export function Layout({ children }: { children: React.ReactNode }) {
 	const data = useLoaderData<typeof loader>();
-	const bootstrapScript = data?.statsig
-		? `window.__REFERENCE_BOOTSTRAP__=${safeScriptJson({
-				clientKey: data.app.statsigClientKey,
-				user: data.statsig.bootstrap.user,
-				bootstrap: data.statsig.bootstrap,
-			})};`
-		: '';
 
 	return (
 		<html lang="en" data-theme="kumo" data-mode="light">
@@ -69,7 +53,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
 					</div>
 				</header>
 				<main>{children}</main>
-				{bootstrapScript ? <script dangerouslySetInnerHTML={{ __html: bootstrapScript }} /> : null}
 				<ScrollRestoration />
 				<Scripts />
 			</body>

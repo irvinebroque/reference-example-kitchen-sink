@@ -1,69 +1,48 @@
-import { StatsigClient } from '@statsig/js-client';
-import { StatsigServerlessClient } from '@statsig/serverless-client';
-import { describe, expect, it } from 'vitest';
-import type { TargetingUser } from '../../shared/statsig-contract';
-import { configSpecsFixture } from '../fixtures/config-specs';
+import type { StatsigServerlessClient } from '@statsig/serverless-client';
+import { describe, expect, it, vi } from 'vitest';
+import { evaluateApplicationDecisions } from '../../workers/statsig/decision-evaluator';
+import type { TargetingUser } from '../../workers/statsig/statsig-user';
+import { createStatsigServerClient } from '../fixtures/config-specs';
 
 const user: TargetingUser = {
 	userID: 'demo:user',
 	email: 'user@example.com',
 	customIDs: { applicationID: 'reference-app' },
-	custom: { applicationId: 'reference-app' },
+	custom: { applicationId: 'reference-app', tenantId: 'reference-tenant' },
 	statsigEnvironment: { tier: 'test' },
 };
 
-function createServerClient(): StatsigServerlessClient {
-	const client = new StatsigServerlessClient('secret-test-evaluator', {
-		loggingEnabled: 'disabled',
-		networkConfig: { preventAllNetworkTraffic: true },
-	});
-	client.dataAdapter.setData(JSON.stringify(configSpecsFixture));
-	client.initializeSync();
-	return client;
-}
-
-describe('official Statsig evaluator', () => {
-	it('evaluates gates and configs with @statsig/serverless-client', () => {
-		const bootstrap = createServerClient().getClientInitializeResponse(user, {
-			clientSDKKey: 'client-test',
-			hash: 'none',
-		});
-		expect(bootstrap).not.toBeNull();
-		if (!bootstrap) throw new Error('Fixture Statsig client failed to initialize');
-		expect(bootstrap.generator).toBe('js-on-device-eval-client');
-		expect(bootstrap.feature_gates.reference_gate?.value).toBe(true);
-		expect(bootstrap.feature_gates.unknown_construct_fails_closed?.value).toBe(false);
-		expect(bootstrap.dynamic_configs.welcome_config?.value).toEqual({
-			message: 'hello',
+describe('application decision evaluator', () => {
+	it('maps provider gates and configs to application decisions', () => {
+		expect(evaluateApplicationDecisions(createStatsigServerClient(), user)).toEqual({
+			showReferenceExperience: true,
+			welcomeMessage: 'hello',
 		});
 	});
 
-	it('bootstraps @statsig/js-client through its public data adapter without network traffic', async () => {
-		const bootstrap = createServerClient().getClientInitializeResponse(user, {
-			clientSDKKey: 'client-test',
-			hash: 'none',
+	it('uses the application default for malformed dynamic configuration', () => {
+		const client = {
+			checkGate: vi.fn(() => true),
+			getDynamicConfig: vi.fn(() => ({ value: { message: 42 } })),
+		} as unknown as StatsigServerlessClient;
+		expect(evaluateApplicationDecisions(client, user)).toEqual({
+			showReferenceExperience: true,
+			welcomeMessage: 'Welcome',
 		});
-		expect(bootstrap).not.toBeNull();
+	});
 
-		const client = new StatsigClient(
-			'client-test',
-			{
-				userID: user.userID,
-				email: user.email,
-				custom: user.custom,
-				customIDs: user.customIDs,
-			},
-			{
-				loggingEnabled: 'disabled',
-				networkConfig: { preventAllNetworkTraffic: true },
-			},
-		);
-		client.dataAdapter.setData(JSON.stringify(bootstrap));
-		client.initializeSync();
-		expect(client.checkGate('reference_gate')).toBe(true);
-		expect(client.getDynamicConfig('welcome_config').value).toEqual({
-			message: 'hello',
+	it('fails closed when provider constructs throw', () => {
+		const client = {
+			checkGate: vi.fn(() => {
+				throw new Error('unsupported gate construct');
+			}),
+			getDynamicConfig: vi.fn(() => {
+				throw new Error('unsupported config construct');
+			}),
+		} as unknown as StatsigServerlessClient;
+		expect(evaluateApplicationDecisions(client, user)).toEqual({
+			showReferenceExperience: false,
+			welcomeMessage: 'Welcome',
 		});
-		await client.shutdown();
 	});
 });

@@ -5,7 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"build": "WRANGLER_LOG_PATH=/tmp/wrangler.log react-router build",
-		"check": "npm run typecheck && npm run test:run && npm run guard:no-cache-api",
+		"check": "npm run typecheck && npm run test:run && npm run guard:no-cache-api && npm run guard:feature-boundary",
 		"cf-typegen": "WRANGLER_LOG_PATH=/tmp/wrangler.log wrangler types && WRANGLER_LOG_PATH=/tmp/wrangler.log wrangler types --config wrangler.statsig.jsonc --env-interface StatsigEnv worker-statsig-configuration.d.ts",
 		"deploy": "npm run build && wrangler deploy --config wrangler.statsig.jsonc --env=\"\" && wrangler deploy",
 		"deploy:app": "npm run build && wrangler deploy",
@@ -13,6 +13,7 @@
 		"deploy:statsig:staging": "wrangler deploy --config wrangler.statsig.jsonc --env staging",
 		"dev": "vite",
 		"guard:no-cache-api": "node scripts/guard-no-cache-api.mjs",
+		"guard:feature-boundary": "node scripts/guard-feature-boundary.mjs",
 		"hash-password": "node scripts/hash-demo-password.mjs",
 		"benchmark:config-specs": "node scripts/benchmark-config-specs.mjs",
 		"preview": "wrangler preview",
@@ -34,7 +35,6 @@
 	},
 	"dependencies": {
 		"@cloudflare/kumo": "^2.8.0",
-		"@statsig/js-client": "3.33.3",
 		"@statsig/serverless-client": "3.33.3",
 		"next": "16.2.12",
 		"next-auth": "4.24.15",

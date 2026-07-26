@@ -15,9 +15,9 @@
 	},
 	"services": [
 		{
-			"binding": "STATSIG_SERVICE",
+			"binding": "FEATURE_SERVICE",
 			"service": "reference-example-kitchen-sink-statsig",
-			"entrypoint": "EvaluationEntrypoint",
+			"entrypoint": "FeatureGatewayEntrypoint",
 		},
 	],
 	"vars": {
@@ -25,10 +25,9 @@
 		"APP_ENVIRONMENT": "production",
 		"APP_VERSION": "local",
 		"DEMO_PASSWORD_DISPLAY": "demo-password",
-		"STATSIG_CLIENT_KEY": "client-reference-example",
 	},
 	"secrets": {
-		"required": ["AUTH_SECRET", "NEXTAUTH_URL", "DEMO_USERNAME", "DEMO_PASSWORD_HASH", "USER_CACHE_HMAC_SECRET"],
+		"required": ["AUTH_SECRET", "NEXTAUTH_URL", "DEMO_USERNAME", "DEMO_PASSWORD_HASH"],
 	},
 	"previews": {
 		"vars": {
@@ -36,13 +35,12 @@
 			"APP_ENVIRONMENT": "preview",
 			"APP_VERSION": "preview",
 			"DEMO_PASSWORD_DISPLAY": "demo-password",
-			"STATSIG_CLIENT_KEY": "client-reference-example",
 		},
 		"services": [
 			{
-				"binding": "STATSIG_SERVICE",
+				"binding": "FEATURE_SERVICE",
 				"service": "reference-example-kitchen-sink-statsig-staging",
-				"entrypoint": "EvaluationEntrypoint",
+				"entrypoint": "FeatureGatewayEntrypoint",
 			},
 		],
 		"cache": {

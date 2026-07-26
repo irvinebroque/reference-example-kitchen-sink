@@ -3,7 +3,7 @@
 	"name": "reference-example-kitchen-sink-statsig",
 	"main": "./workers/statsig/index.ts",
 	"compatibility_date": "2026-07-26",
-	"compatibility_flags": ["nodejs_compat", "memory_cache_delete"],
+	"compatibility_flags": ["nodejs_compat", "memory_cache_delete", "enable_ctx_exports"],
 	"workers_dev": false,
 	"preview_urls": false,
 	"cache": {
@@ -15,7 +15,11 @@
 			"type": "worker",
 			"cache": { "enabled": false },
 		},
-		"EvaluationEntrypoint": {
+		"FeatureGatewayEntrypoint": {
+			"type": "worker",
+			"cache": { "enabled": false },
+		},
+		"DecisionCacheEntrypoint": {
 			"type": "worker",
 			"cache": { "enabled": true },
 		},
@@ -23,11 +27,11 @@
 	"vars": {
 		"APP_ID": "reference-app",
 		"APP_ENVIRONMENT": "production",
+		"TENANT_ID": "reference-tenant",
 		"EVALUATOR_VERSION": "local",
-		"STATSIG_CLIENT_KEY": "client-reference-example",
 		"CONFIG_SPECS_TTL_SECONDS": "300",
-		"BOOTSTRAP_TTL_SECONDS": "60",
-		"BOOTSTRAP_STALE_SECONDS": "300",
+		"DECISIONS_TTL_SECONDS": "60",
+		"DECISIONS_STALE_SECONDS": "300",
 	},
 	"secrets": {
 		"required": ["STATSIG_SERVER_SECRET", "USER_CACHE_HMAC_SECRET", "INVALIDATION_SECRET"],
@@ -50,11 +54,11 @@
 			"vars": {
 				"APP_ID": "reference-app",
 				"APP_ENVIRONMENT": "staging",
+				"TENANT_ID": "reference-tenant",
 				"EVALUATOR_VERSION": "staging",
-				"STATSIG_CLIENT_KEY": "client-reference-example",
 				"CONFIG_SPECS_TTL_SECONDS": "60",
-				"BOOTSTRAP_TTL_SECONDS": "30",
-				"BOOTSTRAP_STALE_SECONDS": "60",
+				"DECISIONS_TTL_SECONDS": "30",
+				"DECISIONS_STALE_SECONDS": "60",
 			},
 			"secrets": {
 				"required": ["STATSIG_SERVER_SECRET", "USER_CACHE_HMAC_SECRET", "INVALIDATION_SECRET"],

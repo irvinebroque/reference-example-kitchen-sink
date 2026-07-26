@@ -4,13 +4,13 @@ import { redirect, useLoaderData, type LoaderFunctionArgs } from 'react-router';
 import { requestContext } from '../context';
 
 export function loader({ context }: LoaderFunctionArgs) {
-	const { session, statsig } = context.get(requestContext);
+	const { session, features } = context.get(requestContext);
 	if (!session?.user) {
 		throw redirect('/api/auth/signin?callbackUrl=/protected');
 	}
 	return {
 		user: session.user,
-		statsig,
+		features,
 	};
 }
 
@@ -23,7 +23,7 @@ export default function ProtectedRoute() {
 					<Text variant="heading1" as="h1">
 						Welcome, {data.user.name ?? 'user'}
 					</Text>
-					<Text variant="secondary">This protected page was rendered after one session lookup and one Statsig service binding fetch.</Text>
+					<Text variant="secondary">This protected page was rendered after one session lookup and one feature service binding fetch.</Text>
 				</div>
 			</section>
 
@@ -35,7 +35,8 @@ export default function ProtectedRoute() {
 					{JSON.stringify(
 						{
 							user: data.user,
-							diagnostics: data.statsig?.diagnostics,
+							decisions: data.features?.decisions,
+							diagnostics: data.features?.diagnostics,
 						},
 						null,
 						2,

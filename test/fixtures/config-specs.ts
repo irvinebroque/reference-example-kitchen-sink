@@ -1,5 +1,4 @@
 import { StatsigServerlessClient } from '@statsig/serverless-client';
-import type { TargetingUser } from '../../shared/statsig-contract';
 
 export const configSpecsFixture = {
 	time: 1_725_000_000_000,
@@ -108,17 +107,12 @@ export const configSpecsFixture = {
 	segments: [],
 };
 
-export function createOfficialBootstrap(user: TargetingUser, clientKey = 'client-test') {
+export function createStatsigServerClient(): StatsigServerlessClient {
 	const client = new StatsigServerlessClient(`secret-test-${crypto.randomUUID()}`, {
 		loggingEnabled: 'disabled',
 		networkConfig: { preventAllNetworkTraffic: true },
 	});
 	client.dataAdapter.setData(JSON.stringify(configSpecsFixture));
 	client.initializeSync();
-	const bootstrap = client.getClientInitializeResponse(user, {
-		clientSDKKey: clientKey,
-		hash: 'none',
-	});
-	if (!bootstrap) throw new Error('Fixture Statsig client failed to initialize');
-	return bootstrap;
+	return client;
 }

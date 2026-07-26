@@ -1,5 +1,5 @@
 import { timingSafeEqual } from 'node:crypto';
-import type { TargetingUser } from './statsig-contract';
+import type { TargetingUser } from './statsig-user';
 
 const encoder = new TextEncoder();
 
@@ -35,14 +35,9 @@ export async function createUserCacheKey(user: TargetingUser, secret: string): P
 }
 
 export async function verifyUserCacheKey(user: TargetingUser, secret: string, expected: string): Promise<boolean> {
-	if (!expected.startsWith('v1_')) {
-		return false;
-	}
+	if (!/^v1_[a-f0-9]{64}$/.test(expected)) return false;
 	const actual = await createUserCacheKey(user, secret);
 	const actualBytes = encoder.encode(actual);
 	const expectedBytes = encoder.encode(expected);
-	if (actualBytes.byteLength !== expectedBytes.byteLength) {
-		return false;
-	}
-	return timingSafeEqual(actualBytes, expectedBytes);
+	return actualBytes.byteLength === expectedBytes.byteLength && timingSafeEqual(actualBytes, expectedBytes);
 }

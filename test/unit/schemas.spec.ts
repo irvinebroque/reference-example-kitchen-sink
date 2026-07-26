@@ -1,47 +1,65 @@
 import { describe, expect, it } from 'vitest';
-import { evaluatorServiceResponseSchema, targetingUserSchema } from '../../shared/statsig-contract';
+import {
+	applicationDecisionsSchema,
+	featureServiceResponseSchema,
+	featureSubjectSchema,
+} from '../../shared/feature-contract';
 
-describe('internal schemas', () => {
-	it('rejects malformed targeting users', () => {
+describe('feature service contract', () => {
+	it('accepts and normalizes valid feature subjects', () => {
 		expect(
-			targetingUserSchema.safeParse({
-				userID: '',
-				statsigEnvironment: { tier: '' },
+			featureSubjectSchema.parse({
+				id: ' demo:user ',
+				email: ' User@Example.com ',
+			}),
+		).toEqual({
+			id: 'demo:user',
+			email: 'user@example.com',
+		});
+	});
+
+	it('rejects empty IDs and malformed email addresses', () => {
+		expect(featureSubjectSchema.safeParse({ id: '' }).success).toBe(false);
+		expect(featureSubjectSchema.safeParse({ id: 'demo:user', email: 'not-email' }).success).toBe(false);
+	});
+
+	it('accepts application decisions and rejects wrong decision types', () => {
+		expect(
+			applicationDecisionsSchema.safeParse({
+				showReferenceExperience: true,
+				welcomeMessage: 'hello',
+			}).success,
+		).toBe(true);
+		expect(
+			applicationDecisionsSchema.safeParse({
+				showReferenceExperience: 'true',
+				welcomeMessage: 'hello',
 			}).success,
 		).toBe(false);
 	});
 
-	it('validates only the consumed bootstrap fields at the Service Binding boundary', () => {
+	it('rejects malformed diagnostics', () => {
 		const envelope = {
-			bootstrap: {
-				feature_gates: {
-					reference_gate: {
-						value: true,
-						vendorOwnedField: 'ignored',
-					},
-				},
-				user: {
-					userID: 'demo:user',
-					email: 'user@example.com',
-				},
-				dynamic_configs: 'not interpreted by this application',
+			decisions: {
+				showReferenceExperience: true,
+				welcomeMessage: 'hello',
 			},
 			diagnostics: {
 				evaluatorVersion: 'test',
-				configSpecsTime: '1',
-				configSpecsStale: false,
-				evaluatorDurationMs: 1,
+				configurationGeneration: '1',
+				configurationStale: false,
+				evaluationDurationMs: 1,
 				payloadBytes: 100,
 			},
 		};
 
-		expect(evaluatorServiceResponseSchema.safeParse(envelope).success).toBe(true);
+		expect(featureServiceResponseSchema.safeParse(envelope).success).toBe(true);
 		expect(
-			evaluatorServiceResponseSchema.safeParse({
+			featureServiceResponseSchema.safeParse({
 				...envelope,
-				bootstrap: {
-					...envelope.bootstrap,
-					feature_gates: { reference_gate: { value: 'true' } },
+				diagnostics: {
+					...envelope.diagnostics,
+					configurationStale: 'false',
 				},
 			}).success,
 		).toBe(false);

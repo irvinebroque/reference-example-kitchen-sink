@@ -1,12 +1,11 @@
 import { createContext } from 'react-router';
 import type { Session } from 'next-auth';
-import type { StatsigAssignment } from '../shared/statsig-contract';
+import type { FeatureSnapshot } from '../shared/feature-contract';
 
 export interface AppMetadata {
 	applicationId: string;
 	environment: string;
 	version: string;
-	statsigClientKey: string;
 }
 
 export interface AuthRequestHandler {
@@ -21,7 +20,7 @@ export interface DemoCredentials {
 export interface AppRequestContext {
 	app: AppMetadata;
 	session: Session | null;
-	statsig: StatsigAssignment | null;
+	features: FeatureSnapshot | null;
 }
 
 export const requestContext = createContext<AppRequestContext>();

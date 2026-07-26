@@ -9,14 +9,13 @@ export function meta() {
 		{ title: 'Workers reference application' },
 		{
 			name: 'description',
-			content: 'Two-Worker reference for React Router SSR, NextAuth, Statsig and Workers Cache.',
+			content: 'Two-Worker reference for React Router SSR, NextAuth, feature decisions, and Workers Cache.',
 		},
 	];
 }
 
 export default function Home() {
 	const data = useRouteLoaderData<typeof rootLoader>('root');
-	const gates = data?.statsig?.bootstrap.feature_gates ?? {};
 	return (
 		<div className="page-shell">
 			<section className="page-heading">
@@ -24,7 +23,7 @@ export default function Home() {
 					<Text variant="heading1" as="h1">
 						Workers reference
 					</Text>
-					<Text variant="secondary">A small reference for React Router SSR, NextAuth, Statsig, and Workers Cache.</Text>
+					<Text variant="secondary">A small reference for React Router SSR, NextAuth, feature decisions, and Workers Cache.</Text>
 				</div>
 				<Badge variant={data?.session?.user ? 'success' : 'neutral'} appearance="dot">
 					{data?.session?.user ? 'Authenticated' : 'Anonymous'}
@@ -60,28 +59,28 @@ export default function Home() {
 				<LayerCard className="content-card">
 					<div className="card-heading">
 						<Text variant="heading3" as="h2">
-							Evaluator diagnostics
+							Feature evaluator
 						</Text>
-						<Text variant="secondary">Private service binding</Text>
+						<Text variant="secondary">Feature service binding</Text>
 					</div>
-					{data?.statsig ? (
+					{data?.features ? (
 						<dl>
 							<Text as="dt" variant="secondary">
 								Workers Cache
 							</Text>
-							<Text as="dd">{data.statsig.diagnostics.cacheStatus}</Text>
+							<Text as="dd">{data.features.diagnostics.cacheStatus}</Text>
 							<Text as="dt" variant="secondary">
 								Evaluator version
 							</Text>
-							<Text as="dd">{data.statsig.diagnostics.evaluatorVersion}</Text>
+							<Text as="dd">{data.features.diagnostics.evaluatorVersion}</Text>
 							<Text as="dt" variant="secondary">
-								Config specs time
+								Configuration generation
 							</Text>
-							<Text as="dd">{data.statsig.diagnostics.configSpecsTime}</Text>
+							<Text as="dd">{data.features.diagnostics.configurationGeneration}</Text>
 							<Text as="dt" variant="secondary">
 								Payload
 							</Text>
-							<Text as="dd">{data.statsig.diagnostics.payloadBytes.toLocaleString()} bytes</Text>
+							<Text as="dd">{data.features.diagnostics.payloadBytes.toLocaleString()} bytes</Text>
 						</dl>
 					) : (
 						<Text variant="secondary">Sign in to issue the evaluator service binding request.</Text>
@@ -91,23 +90,28 @@ export default function Home() {
 				<LayerCard className="content-card gates-card">
 					<div className="card-heading">
 						<Text variant="heading3" as="h2">
-							Evaluated feature gates
+							Application decisions
 						</Text>
 						<Text variant="secondary">Current request</Text>
 					</div>
-					{Object.keys(gates).length ? (
+					{data?.features ? (
 						<ul className="gate-list">
-							{Object.entries(gates).map(([name, gate]) => (
-								<li key={name}>
-									<code className="inline-code">{name}</code>
-									<Badge variant={gate.value ? 'success' : 'neutral'} appearance="dot">
-										{gate.value ? 'Enabled' : 'Disabled'}
-									</Badge>
-								</li>
-							))}
+							<li>
+								<span>Reference experience</span>
+								<Badge
+									variant={data.features.decisions.showReferenceExperience ? 'success' : 'neutral'}
+									appearance="dot"
+								>
+									{data.features.decisions.showReferenceExperience ? 'Enabled' : 'Disabled'}
+								</Badge>
+							</li>
+							<li>
+								<span>Welcome message</span>
+								<Text>{data.features.decisions.welcomeMessage}</Text>
+							</li>
 						</ul>
 					) : (
-						<Text variant="secondary">No gate payload is present for this request.</Text>
+						<Text variant="secondary">No feature decisions are present for this request.</Text>
 					)}
 				</LayerCard>
 			</section>
