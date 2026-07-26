@@ -119,3 +119,26 @@ credentials, sign-out, expiry, body limits, and malformed JSON bodies.
 
 When changing the pinned NextAuth version, run the full test suite and review
 this adapter against the new version's request and response behavior.
+
+## Testing
+
+The bridge is covered at three boundaries:
+
+1. `test/unit/next-auth-bridge.spec.ts` runs fast protocol contracts and
+   parsing edge cases in Node.
+2. `test/workers/next-auth-bridge.spec.ts` imports the production bridge inside
+   `workerd` through Cloudflare's Vitest integration, including secure cookies
+   and body-size boundaries.
+3. `test/unit/app-auth-integration.spec.ts` runs the real bridge through the
+   application handler and response finalizer to prove refreshed and cleared
+   cookies reach the outgoing response.
+
+Run `pnpm run test:unit` and `pnpm run test:workers` independently, or
+`pnpm run test:run` for both layers.
+
+When `NEXTAUTH_URL` is not configured and NextAuth host trust is enabled, the
+bridge preserves caller-provided `x-forwarded-host` and `x-forwarded-proto`
+headers and only derives missing values from the request URL. The Cloudflare
+routing layer is therefore responsible for ensuring those incoming headers
+are trustworthy before the bridge uses them to construct callback origins.
+NextAuth's configured `NEXTAUTH_URL` continues to take precedence when present.

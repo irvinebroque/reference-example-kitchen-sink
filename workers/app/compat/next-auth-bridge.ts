@@ -18,10 +18,12 @@ interface CollectedResponse {
 	toResponse(): Response;
 }
 
+const AUTH_BASE_PATH = '/api/auth';
 const MAX_AUTH_BODY_BYTES = 32 * 1024;
 
 class AuthBodyTooLargeError extends Error {}
 class InvalidAuthBodyError extends Error {}
+class InvalidAuthPathError extends Error {}
 
 function parseCookies(header: string | null): Record<string, string> {
 	if (!header) return {};
@@ -44,9 +46,25 @@ function createHeaders(request: Request): Record<string, string> {
 	const headers = Object.fromEntries(request.headers);
 	const url = new URL(request.url);
 	headers.host ??= url.host;
+	// Explicit proxy headers are trusted and preserved. The application or
+	// platform routing layer owns the trust boundary for incoming headers.
 	headers['x-forwarded-host'] ??= url.host;
 	headers['x-forwarded-proto'] ??= url.protocol.slice(0, -1);
 	return headers;
+}
+
+function createNextAuthPath(pathname: string): string[] {
+	if (pathname === AUTH_BASE_PATH || pathname === `${AUTH_BASE_PATH}/`) return [];
+	if (!pathname.startsWith(`${AUTH_BASE_PATH}/`)) return [];
+	try {
+		return pathname
+			.slice(AUTH_BASE_PATH.length + 1)
+			.split('/')
+			.filter(Boolean)
+			.map((segment) => decodeURIComponent(segment));
+	} catch {
+		throw new InvalidAuthPathError();
+	}
 }
 
 function createQuery(url: URL, nextauth: string[]): NextAuthApiRequest['query'] {
@@ -186,9 +204,11 @@ function createResponse(): CollectedResponse {
 export function createNextAuthBridge(options: AuthOptions): NextAuthBridge {
 	return {
 		async handle(request) {
-			const url = new URL(request.url);
-			const nextauth = url.pathname.slice('/api/auth/'.length).split('/').filter(Boolean).map(decodeURIComponent);
 			try {
+				const nextauth = createNextAuthPath(new URL(request.url).pathname);
+				if (nextauth.length === 0) {
+					return Response.json({ error: 'invalid_auth_action' }, { status: 400 });
+				}
 				const collected = createResponse();
 				await nextAuth(createRequest(request, nextauth, await parseBody(request)), collected.response, options);
 				return collected.toResponse();
@@ -197,6 +217,7 @@ export function createNextAuthBridge(options: AuthOptions): NextAuthBridge {
 					return Response.json({ error: 'request_too_large' }, { status: 413 });
 				}
 				if (error instanceof InvalidAuthBodyError) return Response.json({ error: 'invalid_request_body' }, { status: 400 });
+				if (error instanceof InvalidAuthPathError) return Response.json({ error: 'invalid_auth_path' }, { status: 400 });
 				throw error;
 			}
 		},

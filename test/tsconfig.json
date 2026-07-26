@@ -1,0 +1,25 @@
+{
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"lib": ["es2024"],
+		"skipLibCheck": true,
+		"types": [
+			"node",
+			"vite/client",
+			"@cloudflare/vitest-pool-workers/types",
+			"../worker-runtime.d.ts",
+			"../worker-configuration.d.ts"
+		]
+	},
+	"include": [
+		"../.react-router/types/+server-build.d.ts",
+		"../worker-runtime.d.ts",
+		"../worker-configuration.d.ts",
+		"../types/next-auth.d.ts",
+		"./env.d.ts",
+		"./helpers/**/*.ts",
+		"./unit/app-auth-integration.spec.ts",
+		"./unit/next-auth-bridge.spec.ts",
+		"./workers/**/*.spec.ts"
+	]
+}
