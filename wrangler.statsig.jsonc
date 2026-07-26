@@ -3,7 +3,7 @@
 	"name": "reference-example-kitchen-sink-statsig",
 	"main": "./workers/statsig/index.ts",
 	"compatibility_date": "2026-07-26",
-	"compatibility_flags": ["nodejs_compat", "memory_cache_delete", "enable_ctx_exports"],
+	"compatibility_flags": ["nodejs_compat", "memory_cache_delete"],
 	"workers_dev": false,
 	"preview_urls": false,
 	"cache": {
