@@ -1,22 +1,5 @@
 import { featureServiceResponseSchema, type FeatureSnapshot } from '../../shared/feature-contract';
 
-export function createFeatureLoader(
-	service: Service,
-	user: { id?: string; email?: string | null } | null | undefined,
-): () => Promise<FeatureSnapshot | null> {
-	const noFeatures = Promise.resolve(null);
-	let snapshot: Promise<FeatureSnapshot> | undefined;
-
-	return () => {
-		if (!user?.id) return noFeatures;
-		snapshot ??= loadFeatureSnapshot(service, {
-			id: user.id,
-			email: user.email,
-		});
-		return snapshot;
-	};
-}
-
 export async function loadFeatureSnapshot(
 	service: Service,
 	user: { id: string; email?: string | null },

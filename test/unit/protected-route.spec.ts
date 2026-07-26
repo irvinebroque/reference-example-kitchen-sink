@@ -15,8 +15,7 @@ function loaderArgs(context: RouterContextProvider): LoaderFunctionArgs {
 }
 
 describe('protected route', () => {
-	it('redirects before requesting features for unauthenticated users', async () => {
-		let featureRequests = 0;
+	it('uses a document redirect for the non-React-Router auth endpoint', () => {
 		const context = new RouterContextProvider();
 		context.set(requestContext, {
 			app: {
@@ -24,16 +23,13 @@ describe('protected route', () => {
 				environment: 'test',
 				version: 'test',
 			},
-			async getFeatures() {
-				featureRequests += 1;
-				return null;
-			},
+			features: null,
 			session: null,
 		});
 
 		let thrown: unknown;
 		try {
-			await loader(loaderArgs(context));
+			loader(loaderArgs(context));
 		} catch (error) {
 			thrown = error;
 		}
@@ -43,6 +39,5 @@ describe('protected route', () => {
 		expect(thrown.status).toBe(302);
 		expect(thrown.headers.get('location')).toBe('/api/auth/signin?callbackUrl=/protected');
 		expect(thrown.headers.get('x-remix-reload-document')).toBe('true');
-		expect(featureRequests).toBe(0);
 	});
 });

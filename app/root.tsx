@@ -8,8 +8,7 @@ import '@cloudflare/kumo/styles/standalone';
 import './styles.css';
 
 export function loader({ context }: LoaderFunctionArgs) {
-	const { app, session } = context.get(requestContext);
-	return { app, session };
+	return context.get(requestContext);
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {

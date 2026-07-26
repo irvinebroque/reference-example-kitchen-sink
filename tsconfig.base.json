@@ -1,0 +1,15 @@
+{
+	"compilerOptions": {
+		"target": "es2024",
+		"module": "es2022",
+		"moduleResolution": "Bundler",
+		"resolveJsonModule": true,
+		"allowJs": true,
+		"checkJs": false,
+		"noEmit": true,
+		"isolatedModules": true,
+		"allowSyntheticDefaultImports": true,
+		"forceConsistentCasingInFileNames": true,
+		"strict": true
+	}
+}

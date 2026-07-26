@@ -1,7 +1,7 @@
 import { createRequestHandler, RouterContextProvider, type ServerBuild } from 'react-router';
 import { authContext, demoCredentialsContext, requestContext, type AppMetadata } from '../../app/context';
 import { createAuthService } from './auth';
-import { createFeatureLoader } from './feature-service-client';
+import { loadFeatureSnapshot } from './feature-service-client';
 import { finalizeAppResponse } from './response';
 
 const handleReactRouterRequest = createRequestHandler(
@@ -49,11 +49,17 @@ export function createApp(env: Env): ExportedHandler<Env> {
 
 				const { headers: loadedSessionHeaders, session } = await auth.loadSession(request);
 				const sessionHeaders = url.pathname === '/auth/signin' ? new Headers() : loadedSessionHeaders;
+				const features = session?.user?.id
+					? await loadFeatureSnapshot(env.FEATURE_SERVICE, {
+							id: session.user.id,
+							email: session.user.email,
+						})
+					: null;
 				const context = new RouterContextProvider();
 				context.set(requestContext, {
 					app: metadata,
-					getFeatures: createFeatureLoader(env.FEATURE_SERVICE, session?.user),
 					session,
+					features,
 				});
 				context.set(authContext, auth);
 				context.set(demoCredentialsContext, {

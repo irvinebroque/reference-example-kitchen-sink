@@ -1,0 +1,15 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"lib": ["es2024"],
+		"skipLibCheck": true,
+		"types": ["../../worker-runtime.d.ts", "../../worker-configuration.d.ts", "node"]
+	},
+	"include": [
+		"../../.react-router/types/+server-build.d.ts",
+		"../../worker-runtime.d.ts",
+		"../../worker-configuration.d.ts",
+		"../../types/next-auth.d.ts",
+		"./**/*.ts"
+	]
+}

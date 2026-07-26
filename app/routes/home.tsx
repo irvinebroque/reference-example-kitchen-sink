@@ -1,17 +1,8 @@
 import { Badge } from '@cloudflare/kumo/components/badge';
 import { LayerCard } from '@cloudflare/kumo/components/layer-card';
 import { Text } from '@cloudflare/kumo/components/text';
-import { useLoaderData, type LoaderFunctionArgs } from 'react-router';
-import { requestContext } from '../context';
-
-export async function loader({ context }: LoaderFunctionArgs) {
-	const { app, getFeatures, session } = context.get(requestContext);
-	return {
-		app,
-		features: await getFeatures(),
-		session,
-	};
-}
+import { useRouteLoaderData } from 'react-router';
+import type { loader as rootLoader } from '../root';
 
 export function meta() {
 	return [
@@ -24,7 +15,7 @@ export function meta() {
 }
 
 export default function Home() {
-	const data = useLoaderData<typeof loader>();
+	const data = useRouteLoaderData<typeof rootLoader>('root');
 	return (
 		<div className="page-shell">
 			<section className="page-heading">

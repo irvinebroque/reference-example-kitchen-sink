@@ -6,7 +6,8 @@
 	"scripts": {
 		"build": "WRANGLER_LOG_PATH=/tmp/wrangler.log react-router build",
 		"check": "npm run typecheck && npm run test:run && npm run guard:no-cache-api && npm run guard:feature-boundary",
-		"cf-typegen": "WRANGLER_LOG_PATH=/tmp/wrangler.log wrangler types && WRANGLER_LOG_PATH=/tmp/wrangler.log wrangler types --config wrangler.statsig.jsonc --env-interface StatsigEnv worker-statsig-configuration.d.ts",
+		"cf-typecheck": "WRANGLER_LOG_PATH=/tmp/wrangler.log wrangler types --include-env=false --check worker-runtime.d.ts && WRANGLER_LOG_PATH=/tmp/wrangler.log wrangler types --include-runtime=false --check worker-configuration.d.ts && WRANGLER_LOG_PATH=/tmp/wrangler.log wrangler types --config wrangler.statsig.jsonc --env-interface StatsigEnv --include-runtime=false --check worker-statsig-configuration.d.ts",
+		"cf-typegen": "WRANGLER_LOG_PATH=/tmp/wrangler.log wrangler types --include-env=false worker-runtime.d.ts && WRANGLER_LOG_PATH=/tmp/wrangler.log wrangler types --include-runtime=false worker-configuration.d.ts && WRANGLER_LOG_PATH=/tmp/wrangler.log wrangler types --config wrangler.statsig.jsonc --env-interface StatsigEnv --include-runtime=false worker-statsig-configuration.d.ts",
 		"deploy": "npm run build && wrangler deploy --config wrangler.statsig.jsonc --env=\"\" && wrangler deploy",
 		"deploy:app": "npm run build && wrangler deploy",
 		"deploy:statsig": "wrangler deploy --config wrangler.statsig.jsonc --env=\"\"",
@@ -20,7 +21,7 @@
 		"start": "vite",
 		"test": "vitest",
 		"test:run": "vitest run",
-		"typecheck": "WRANGLER_LOG_PATH=/tmp/wrangler.log react-router typegen && tsc --noEmit"
+		"typecheck": "WRANGLER_LOG_PATH=/tmp/wrangler.log react-router typegen && npm run cf-typecheck && tsc --project tsconfig.json && tsc --project workers/app/tsconfig.json && tsc --project workers/statsig/tsconfig.json"
 	},
 	"devDependencies": {
 		"@cloudflare/vite-plugin": "1.47.0",

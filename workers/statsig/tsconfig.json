@@ -1,0 +1,19 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"lib": ["es2024"],
+		"skipLibCheck": true,
+		"types": [
+			"../../worker-runtime.d.ts",
+			"../../worker-statsig-configuration.d.ts",
+			"../../types/statsig-config-specs-cache.d.ts",
+			"node"
+		]
+	},
+	"include": [
+		"../../worker-runtime.d.ts",
+		"../../worker-statsig-configuration.d.ts",
+		"../../types/statsig-config-specs-cache.d.ts",
+		"./**/*.ts"
+	]
+}
