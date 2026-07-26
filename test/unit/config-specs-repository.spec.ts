@@ -8,18 +8,12 @@ import { configSpecsFixture } from '../fixtures/config-specs';
 
 class MemoryConfigSpecsCache implements ConfigSpecsCacheBinding {
 	value: CachedConfigSpecs | undefined;
-	deletedKeys: string[] = [];
 
 	async read(_key: string, fallback: () => Promise<{ value: CachedConfigSpecs; expiration: number }>): Promise<CachedConfigSpecs> {
 		if (!this.value || this.value.expiresAt <= Date.now()) {
 			this.value = (await fallback()).value;
 		}
 		return this.value;
-	}
-
-	delete(key: string): void {
-		this.deletedKeys.push(key);
-		this.value = undefined;
 	}
 }
 
@@ -90,20 +84,6 @@ describe('config specs repository', () => {
 
 		expect(refreshed.time).toBe(String(refreshedConfigSpecs.time));
 		expect(refreshed.client).not.toBe(initial.client);
-	});
-
-	it('clears local and volatile state during explicit invalidation', async () => {
-		const fetchConfigSpecs = async () => JSON.stringify(configSpecsFixture);
-		const cache = new MemoryConfigSpecsCache();
-		cache.value = cachedConfigSpecs();
-		const repository = new ConfigSpecsRepository('secret-test-invalidation', cache, fetchConfigSpecs, 60);
-		const initial = await repository.get();
-
-		repository.invalidate();
-		const reloaded = await repository.get();
-
-		expect(cache.deletedKeys).toEqual(['statsig-config-specs-v1']);
-		expect(reloaded.client).not.toBe(initial.client);
 	});
 
 	it('returns last-known-good data when TTL reload fails', async () => {

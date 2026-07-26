@@ -34,7 +34,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
 							Overview
 						</NavLink>
 						<NavLink to="/protected">Protected route</NavLink>
-						<NavLink to="/form-demo">Form action</NavLink>
 					</nav>
 					<div className="session-actions">
 						{data?.session?.user ? (

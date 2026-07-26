@@ -221,21 +221,6 @@ dd {
 	font-size: 0.9em;
 }
 
-.form-stack,
-.result {
-	display: grid;
-	gap: 16px;
-}
-
-.form-stack button {
-	justify-self: start;
-}
-
-.result {
-	padding-top: 18px;
-	border-top: 1px solid var(--color-kumo-hairline);
-}
-
 pre {
 	margin: 0;
 	overflow: auto;

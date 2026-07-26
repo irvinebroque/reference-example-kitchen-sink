@@ -50,7 +50,6 @@ export async function handleDecisionRequest(
 		return new Response(request.method === 'HEAD' ? null : body, {
 			headers: {
 				'Cache-Control': `public, max-age=${positiveNumberSetting(env.DECISIONS_TTL_SECONDS, 60)}, stale-while-revalidate=${positiveNumberSetting(env.DECISIONS_STALE_SECONDS, 300)}`,
-				'Cache-Tag': `feature-decisions-app-${env.APP_ID}`,
 				'Content-Type': 'application/json; charset=utf-8',
 				'X-Configuration-Generation': snapshot.time,
 				'X-Evaluator-Version': env.EVALUATOR_VERSION,

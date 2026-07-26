@@ -1,8 +1,8 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
-import { handleAdminRequest } from './admin-handler';
 import { ConfigSpecsRepository } from './config-specs-repository';
 import { handleDecisionRequest, type DecisionCacheProps } from './decision-handler';
 import { handleGatewayRequest } from './gateway-handler';
+import { handleHealthRequest } from './health-handler';
 import { positiveNumberSetting } from './responses';
 
 let configSpecsRepository: ConfigSpecsRepository | undefined;
@@ -40,23 +40,10 @@ export class DecisionCacheEntrypoint extends WorkerEntrypoint<StatsigEnv, Decisi
 	fetch(request: Request): Promise<Response> {
 		return handleDecisionRequest(request, this.env, getConfigSpecsRepository(this.env), this.ctx.props);
 	}
-
-	purgeApplicationDecisions(): Promise<CachePurgeResult> {
-		const cache = this.ctx.cache;
-		if (!cache) throw new Error('Decision cache context is unavailable');
-		return cache.purge({
-			tags: [`feature-decisions-app-${this.env.APP_ID}`],
-		});
-	}
 }
 
 export default {
-	fetch(request: Request, env: StatsigEnv, ctx: ExecutionContext): Promise<Response> {
-		return handleAdminRequest(
-			request,
-			env,
-			getConfigSpecsRepository(env),
-			ctx.exports.DecisionCacheEntrypoint,
-		);
+	fetch(request: Request, env: StatsigEnv): Response {
+		return handleHealthRequest(request, env);
 	},
 } satisfies ExportedHandler<StatsigEnv>;

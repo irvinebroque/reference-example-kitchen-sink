@@ -25,9 +25,8 @@ use that PR's Miniflare build.
 
 Wrangler does not yet expose this binding in its public schema or generated
 types, so `types/statsig-config-specs-cache.d.ts` supplies the narrow
-`read(key, fallback)` and `delete(key)` contract. The configured 64 MiB
-per-value and 128 MiB total limits must be validated against a representative
-config-specs payload.
+`read(key, fallback)` contract. The configured 64 MiB per-value and 128 MiB
+total limits must be validated against a representative config-specs payload.
 
 ## Architecture
 
@@ -49,14 +48,12 @@ The evaluator exports three entrypoints:
 
 | Entrypoint | Purpose | Workers Cache |
 | --- | --- | --- |
-| `default` | Health and authenticated invalidation | Disabled |
+| `default` | Health | Disabled |
 | `FeatureGatewayEntrypoint` | Validate and normalize neutral subjects | Disabled |
 | `DecisionCacheEntrypoint` | Evaluate and cache application decisions | Enabled |
 
 The gateway invokes the decision entrypoint through
-`ctx.exports.DecisionCacheEntrypoint({ props }).fetch()`. Custom RPC is used
-only for cache-tag invalidation because Workers Cache applies to `fetch()`
-invocations, not arbitrary RPC methods.
+`ctx.exports.DecisionCacheEntrypoint({ props }).fetch()`.
 
 ## Feature boundary
 
@@ -77,9 +74,6 @@ attributes, passes the validated targeting user through typed entrypoint props,
 loads the current config specs, and maps provider results to the application
 contract.
 
-`scripts/guard-feature-boundary.mjs` prevents provider names and imports from
-appearing under `app/`, `workers/app/`, or `shared/`.
-
 ## Cache behavior
 
 The internal cache request uses one fixed URL. Workers Caching includes the
@@ -90,26 +84,16 @@ Successful decision responses use:
 
 ```http
 Cache-Control: public, max-age={DECISIONS_TTL_SECONDS}, stale-while-revalidate={DECISIONS_STALE_SECONDS}
-Cache-Tag: feature-decisions-app-{APP_ID}
 ```
 
-App, gateway, admin, auth, SSR, validation-error, and evaluation-error
+App, gateway, health, auth, SSR, validation-error, and evaluation-error
 responses are uncached. The config-specs repository keeps one initialized
 server client per configuration generation, preserves absolute expiry, and
 falls back to its last-known-good snapshot when refresh fails.
 
-## Invalidation
-
-`POST /admin/invalidate` requires `INVALIDATION_SECRET`. After authentication,
-the admin entrypoint:
-
-1. Deletes the Volatile Cache entry and isolate-local config snapshot.
-2. Calls `DecisionCacheEntrypoint.purgeApplicationDecisions()`.
-3. Reports the two results independently.
-
-A failed decision-cache purge returns a non-success response with
-`rulesetInvalidated: true` and `decisionsPurged: false`; the endpoint never
-claims a complete invalidation after a partial failure.
+Configuration and decision changes propagate through their bounded TTLs.
+There is no manual invalidation endpoint because isolate-local repository state
+and the entrypoint cache do not share an atomic invalidation boundary.
 
 ## Local setup
 
@@ -128,8 +112,8 @@ claims a complete invalidation after a partial failure.
 
    Copy the generated value into `DEMO_PASSWORD_HASH`. The shared local
    `.dev.vars` file supplies both auxiliary Workers, but
-   `STATSIG_SERVER_SECRET` and `INVALIDATION_SECRET` belong only to the
-   evaluator in deployed environments.
+   `STATSIG_SERVER_SECRET` belongs only to the evaluator in deployed
+   environments.
 
 3. Start both Workers:
 
@@ -149,16 +133,10 @@ npx wrangler deploy --dry-run
 npx wrangler deploy --dry-run --config wrangler.statsig.jsonc
 ```
 
-For a production-shaped config-specs payload:
-
-```sh
-npm run benchmark:config-specs -- /path/to/config-specs.json
-```
-
 ## Deployment order
 
 1. Deploy the staging evaluator.
-2. Configure the evaluator's three secrets.
+2. Configure the evaluator's Statsig server secret.
 3. Push app Preview configuration and auth secrets.
 4. Create or update the app Preview.
 5. Deploy the production evaluator.

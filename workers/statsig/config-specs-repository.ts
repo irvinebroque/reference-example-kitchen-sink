@@ -16,7 +16,6 @@ export interface CachedConfigSpecs {
 
 export interface ConfigSpecsCacheBinding {
 	read(key: string, fallback: () => Promise<{ value: CachedConfigSpecs; expiration: number }>): Promise<CachedConfigSpecs>;
-	delete(key: string): void;
 }
 
 function readConfigSpecsTime(rawJson: string): string {
@@ -65,11 +64,6 @@ export class ConfigSpecsRepository {
 		} catch (error) {
 			return this.staleOrThrow(error);
 		}
-	}
-
-	invalidate(): void {
-		this.configSpecsCache.delete(CONFIG_SPECS_CACHE_KEY);
-		this.lastKnownGood = undefined;
 	}
 
 	private async fetchFreshConfigSpecs(): Promise<{ value: CachedConfigSpecs; expiration: number }> {

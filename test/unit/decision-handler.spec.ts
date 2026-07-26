@@ -51,7 +51,6 @@ describe('decision handler', () => {
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get('cache-control')).toBe('public, max-age=60, stale-while-revalidate=300');
-		expect(response.headers.get('cache-tag')).toBe('feature-decisions-app-reference-app');
 		if (method === 'HEAD') {
 			expect(await response.text()).toBe('');
 		} else {

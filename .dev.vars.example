@@ -5,4 +5,3 @@ DEMO_PASSWORD_DISPLAY=demo-password
 DEMO_PASSWORD_HASH=pbkdf2_sha256$310000$replace-salt$replace-hex-digest
 # Evaluator-only in deployed environments; shared locally by the auxiliary Worker.
 STATSIG_SERVER_SECRET=secret-replace
-INVALIDATION_SECRET=replace-with-a-third-random-secret
