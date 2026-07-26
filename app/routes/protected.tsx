@@ -3,14 +3,14 @@ import { Text } from '@cloudflare/kumo/components/text';
 import { redirectDocument, useLoaderData, type LoaderFunctionArgs } from 'react-router';
 import { requestContext } from '../context';
 
-export function loader({ context }: LoaderFunctionArgs) {
-	const { session, features } = context.get(requestContext);
+export async function loader({ context }: LoaderFunctionArgs) {
+	const { getFeatures, session } = context.get(requestContext);
 	if (!session?.user) {
 		throw redirectDocument('/api/auth/signin?callbackUrl=/protected');
 	}
 	return {
 		user: session.user,
-		features,
+		features: await getFeatures(),
 	};
 }
 

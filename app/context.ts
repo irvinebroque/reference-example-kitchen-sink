@@ -20,7 +20,7 @@ export interface DemoCredentials {
 export interface AppRequestContext {
 	app: AppMetadata;
 	session: Session | null;
-	features: FeatureSnapshot | null;
+	getFeatures(): Promise<FeatureSnapshot | null>;
 }
 
 export const requestContext = createContext<AppRequestContext>();

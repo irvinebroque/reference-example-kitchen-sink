@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadFeatureSnapshot } from '../../workers/app/feature-service-client';
+import { createFeatureLoader, loadFeatureSnapshot } from '../../workers/app/feature-service-client';
 
 const responseBody = {
 	decisions: {
@@ -16,6 +16,38 @@ const responseBody = {
 };
 
 describe('application feature service client', () => {
+	it('defers and memoizes the feature service request for authenticated users', async () => {
+		let calls = 0;
+		const service = {
+			async fetch() {
+				calls += 1;
+				return Response.json(responseBody);
+			},
+		};
+		const getFeatures = createFeatureLoader(service as Service, { id: 'demo:user' });
+
+		expect(calls).toBe(0);
+		const first = getFeatures();
+		const second = getFeatures();
+		expect(first).toBe(second);
+		await expect(first).resolves.toMatchObject({ decisions: responseBody.decisions });
+		expect(calls).toBe(1);
+	});
+
+	it('does not call the feature service for anonymous requests', async () => {
+		let calls = 0;
+		const service = {
+			async fetch() {
+				calls += 1;
+				return Response.json(responseBody);
+			},
+		};
+		const getFeatures = createFeatureLoader(service as Service, null);
+
+		await expect(getFeatures()).resolves.toBeNull();
+		expect(calls).toBe(0);
+	});
+
 	it('makes exactly one credential-free, vendor-neutral service request', async () => {
 		let calls = 0;
 		let observedRequest: Request | undefined;
