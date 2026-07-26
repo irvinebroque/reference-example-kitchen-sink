@@ -1,7 +1,6 @@
 import {
-	bootstrapResponseSchema,
-	evaluatorServiceResponseSchema,
 	parseTargetingUserHeader,
+	type EvaluatorServiceResponse,
 	type TargetingUser,
 } from '../../shared/statsig-contract';
 import { anonymousKeyPrefix, verifyUserCacheKey } from '../../shared/user-cache-key';
@@ -65,10 +64,9 @@ export async function handleEvaluationRequest(request: Request, env: StatsigEnv,
 		if (!initializeResponse) {
 			throw new Error('Statsig client is not initialized');
 		}
-		const bootstrap = bootstrapResponseSchema.parse(initializeResponse);
-		const bootstrapBytes = new TextEncoder().encode(JSON.stringify(bootstrap)).byteLength;
-		const serviceResponse = evaluatorServiceResponseSchema.parse({
-			bootstrap,
+		const bootstrapBytes = new TextEncoder().encode(JSON.stringify(initializeResponse)).byteLength;
+		const serviceResponse = {
+			bootstrap: initializeResponse,
 			diagnostics: {
 				evaluatorVersion: env.EVALUATOR_VERSION,
 				rulesetGeneration: snapshot.generation,
@@ -76,7 +74,7 @@ export async function handleEvaluationRequest(request: Request, env: StatsigEnv,
 				evaluatorDurationMs: Math.round(performance.now() - startedAt),
 				payloadBytes: bootstrapBytes,
 			},
-		});
+		} satisfies EvaluatorServiceResponse;
 		const body = JSON.stringify(serviceResponse);
 		console.log(
 			JSON.stringify({

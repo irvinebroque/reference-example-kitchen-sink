@@ -1,3 +1,4 @@
+import type { StatsigServerlessClient } from '@statsig/serverless-client';
 import { z } from 'zod';
 
 const statsigPrimitiveSchema = z.union([z.string(), z.number(), z.boolean(), z.array(z.string())]);
@@ -15,69 +16,18 @@ export type TargetingUser = z.infer<typeof targetingUserSchema>;
 export const statsigUserSchema = targetingUserSchema.omit({ statsigEnvironment: true }).passthrough();
 export type StatsigUser = z.infer<typeof statsigUserSchema>;
 
-const secondaryExposureSchema = z
-	.object({
-		gate: z.string(),
-		gateValue: z.string(),
-		ruleID: z.string(),
-	})
-	.passthrough();
+export type BootstrapResponse = NonNullable<ReturnType<StatsigServerlessClient['getClientInitializeResponse']>>;
 
-const evaluationBaseSchema = z
+const consumedBootstrapFieldsSchema = z
 	.object({
-		id_type: z.string(),
-		name: z.string(),
-		rule_id: z.string(),
-		secondary_exposures: z.array(z.union([secondaryExposureSchema, z.string()])),
-		version: z.string().optional(),
-	})
-	.passthrough();
-
-export const bootstrapResponseSchema = z
-	.object({
-		feature_gates: z.record(z.string(), evaluationBaseSchema.extend({ value: z.boolean() }).passthrough()),
-		dynamic_configs: z.record(
-			z.string(),
-			evaluationBaseSchema
-				.extend({
-					value: z.record(z.string(), z.unknown()),
-					group: z.string(),
-					group_name: z.string().optional(),
-					is_device_based: z.boolean(),
-					is_experiment_active: z.boolean().optional(),
-					is_user_in_experiment: z.boolean().optional(),
-					passed: z.boolean().optional(),
-					is_in_layer: z.boolean().optional(),
-					explicit_parameters: z.array(z.string()).optional(),
-				})
-				.passthrough(),
-		),
-		layer_configs: z.record(
-			z.string(),
-			evaluationBaseSchema
-				.extend({
-					value: z.record(z.string(), z.unknown()),
-					group: z.string(),
-					group_name: z.string().optional(),
-					is_device_based: z.boolean(),
-					allocated_experiment_name: z.string().optional(),
-					explicit_parameters: z.array(z.string()),
-					undelegated_secondary_exposures: z.array(z.union([secondaryExposureSchema, z.string()])).optional(),
-					parameter_rule_ids: z.record(z.string(), z.string()).optional(),
-				})
-				.passthrough(),
-		),
-		has_updates: z.literal(true),
-		time: z.number(),
-		generator: z.string(),
-		sdkInfo: z.record(z.string(), z.string()),
-		evaluated_keys: z.record(z.string(), z.unknown()),
-		hash_used: z.literal('none'),
+		feature_gates: z.record(z.string(), z.object({ value: z.boolean() }).passthrough()),
 		user: statsigUserSchema,
 	})
 	.passthrough();
 
-export type BootstrapResponse = z.infer<typeof bootstrapResponseSchema>;
+const bootstrapResponseSchema = z.custom<BootstrapResponse>(
+	(value): value is BootstrapResponse => consumedBootstrapFieldsSchema.safeParse(value).success,
+);
 
 export const evaluatorServiceResponseSchema = z.object({
 	bootstrap: bootstrapResponseSchema,

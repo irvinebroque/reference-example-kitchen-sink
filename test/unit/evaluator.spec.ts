@@ -1,7 +1,7 @@
 import { StatsigClient } from '@statsig/js-client';
 import { StatsigServerlessClient } from '@statsig/serverless-client';
 import { describe, expect, it } from 'vitest';
-import { bootstrapResponseSchema, type TargetingUser } from '../../shared/statsig-contract';
+import type { TargetingUser } from '../../shared/statsig-contract';
 import { rulesetFixture } from '../fixtures/ruleset';
 
 const user: TargetingUser = {
@@ -24,12 +24,12 @@ function createServerClient(): StatsigServerlessClient {
 
 describe('official Statsig evaluator', () => {
 	it('evaluates gates and configs with @statsig/serverless-client', () => {
-		const bootstrap = bootstrapResponseSchema.parse(
-			createServerClient().getClientInitializeResponse(user, {
-				clientSDKKey: 'client-test',
-				hash: 'none',
-			}),
-		);
+		const bootstrap = createServerClient().getClientInitializeResponse(user, {
+			clientSDKKey: 'client-test',
+			hash: 'none',
+		});
+		expect(bootstrap).not.toBeNull();
+		if (!bootstrap) throw new Error('Fixture Statsig client failed to initialize');
 		expect(bootstrap.generator).toBe('js-on-device-eval-client');
 		expect(bootstrap.feature_gates.reference_gate?.value).toBe(true);
 		expect(bootstrap.feature_gates.unknown_construct_fails_closed?.value).toBe(false);
