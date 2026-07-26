@@ -355,23 +355,58 @@ describe('NextAuth compatibility capsule', () => {
 		});
 	});
 
-	it('preserves caller-provided forwarded host and protocol headers', async () => {
+	it('rejects caller-provided forwarded origin headers', async () => {
 		Reflect.deleteProperty(process.env, 'NEXTAUTH_URL');
 		process.env.AUTH_TRUST_HOST = 'true';
 		const response = await createNextAuthBridge(contractOptions()).handle(
-			new Request('http://worker.internal/api/auth/providers', {
+			new Request('https://preview.example.test/api/auth/providers', {
 				headers: {
-					'x-forwarded-host': 'public.example.test',
-					'x-forwarded-proto': 'https',
+					'x-forwarded-host': 'attacker.example',
+					'x-forwarded-proto': 'http',
 				},
 			}),
 		);
 
 		expect(response.status).toBe(200);
+		const payload = await response.json();
+		expect(payload).toMatchObject({
+			credentials: {
+				callbackUrl: 'https://preview.example.test/api/auth/callback/credentials',
+				signinUrl: 'https://preview.example.test/api/auth/signin/credentials',
+			},
+		});
+		expect(JSON.stringify(payload)).not.toContain('attacker.example');
+	});
+
+	it('canonicalizes the forwarded protocol from an HTTPS request URL', async () => {
+		Reflect.deleteProperty(process.env, 'NEXTAUTH_URL');
+		process.env.AUTH_TRUST_HOST = 'true';
+		const response = await createNextAuthBridge(contractOptions()).handle(
+			new Request('https://preview.example.test/api/auth/providers', {
+				headers: { 'x-forwarded-proto': 'http' },
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		const payload = (await response.json()) as {
+			credentials: { callbackUrl: string; signinUrl: string };
+		};
+		expect(payload.credentials.callbackUrl).toMatch(/^https:\/\//);
+		expect(payload.credentials.signinUrl).toMatch(/^https:\/\//);
+	});
+
+	it('preserves the request URL port in the canonical origin', async () => {
+		Reflect.deleteProperty(process.env, 'NEXTAUTH_URL');
+		process.env.AUTH_TRUST_HOST = 'true';
+		const response = await createNextAuthBridge(contractOptions()).handle(
+			new Request('http://localhost:8787/api/auth/providers'),
+		);
+
+		expect(response.status).toBe(200);
 		expect(await response.json()).toMatchObject({
 			credentials: {
-				callbackUrl: 'https://public.example.test/api/auth/callback/credentials',
-				signinUrl: 'https://public.example.test/api/auth/signin/credentials',
+				callbackUrl: 'http://localhost:8787/api/auth/callback/credentials',
+				signinUrl: 'http://localhost:8787/api/auth/signin/credentials',
 			},
 		});
 	});

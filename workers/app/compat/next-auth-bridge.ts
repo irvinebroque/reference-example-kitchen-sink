@@ -45,11 +45,9 @@ function parseCookies(header: string | null): Record<string, string> {
 function createHeaders(request: Request): Record<string, string> {
 	const headers = Object.fromEntries(request.headers);
 	const url = new URL(request.url);
-	headers.host ??= url.host;
-	// Explicit proxy headers are trusted and preserved. The application or
-	// platform routing layer owns the trust boundary for incoming headers.
-	headers['x-forwarded-host'] ??= url.host;
-	headers['x-forwarded-proto'] ??= url.protocol.slice(0, -1);
+	headers.host = url.host;
+	headers['x-forwarded-host'] = url.host;
+	headers['x-forwarded-proto'] = url.protocol.slice(0, -1);
 	return headers;
 }
 

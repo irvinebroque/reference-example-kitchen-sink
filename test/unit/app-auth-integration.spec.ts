@@ -1,5 +1,5 @@
 import type { RouterContextProvider } from 'react-router';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { requestContext } from '../../app/context';
 import {
 	applySetCookies,
@@ -62,6 +62,11 @@ function createTestApp(auth: NextAuthBridge): {
 }
 
 describe('application authentication response propagation', () => {
+	afterEach(() => {
+		vi.useRealTimers();
+		vi.restoreAllMocks();
+	});
+
 	it('finalizes auth endpoint responses without collapsing NextAuth cookies', async () => {
 		const { handleRequest } = createTestApp(createNextAuthBridge(contractOptions()));
 
@@ -140,5 +145,101 @@ describe('application authentication response propagation', () => {
 			}),
 		);
 		expect(session).toBeNull();
+	});
+
+	it('preserves a refreshed session cookie when the router fails', async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-07-26T12:00:00.000Z'));
+		const auth = createNextAuthBridge(contractOptions({ sessionMaxAge: 60 }));
+		const { authEndpoint, handleRequest, routerHandler } = createTestApp(auth);
+		const cookies: CookieJar = new Map();
+		await submitCredentials(authEndpoint, cookies);
+		vi.setSystemTime(new Date('2026-07-26T12:00:30.000Z'));
+		routerHandler.mockRejectedValueOnce(new Error('router failed'));
+		vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+		const response = await handleRequest(
+			new Request(`${contractOrigin}/protected`, {
+				headers: requestHeaders(cookies),
+			}),
+		);
+
+		expect(response.status).toBe(500);
+		expect(response.headers.get('cache-control')).toBe('private, no-store');
+		expect(response.headers.get('x-app-version')).toBe(appVersion);
+		expect(getSessionSetCookie(response.headers)).toEqual(expect.any(String));
+		applySetCookies(cookies, response.headers);
+		const { session } = await auth.loadSession(
+			new Request(`${contractOrigin}/protected`, {
+				headers: requestHeaders(cookies),
+			}),
+		);
+		expect(session?.user).toMatchObject(contractUser);
+	});
+
+	it('preserves an expired-session cleanup cookie when the router fails', async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-07-26T12:00:00.000Z'));
+		const auth = createNextAuthBridge(contractOptions({ sessionMaxAge: 60 }));
+		const { authEndpoint, handleRequest, routerHandler } = createTestApp(auth);
+		const cookies: CookieJar = new Map();
+		await submitCredentials(authEndpoint, cookies);
+		vi.setSystemTime(new Date('2026-07-26T12:01:16.000Z'));
+		routerHandler.mockRejectedValueOnce(new Error('router failed'));
+		vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+		const response = await handleRequest(
+			new Request(`${contractOrigin}/protected`, {
+				headers: requestHeaders(cookies),
+			}),
+		);
+
+		expect(response.status).toBe(500);
+		const clearedSessionCookie = getSessionSetCookie(response.headers);
+		expect(clearedSessionCookie).toEqual(expect.any(String));
+		expect(getCookieAttribute(clearedSessionCookie!, 'Max-Age')).toBe('0');
+	});
+
+	it('continues omitting loaded session cookies when the sign-in router fails', async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-07-26T12:00:00.000Z'));
+		const auth = createNextAuthBridge(contractOptions({ sessionMaxAge: 60 }));
+		const { authEndpoint, handleRequest, routerHandler } = createTestApp(auth);
+		const cookies: CookieJar = new Map();
+		await submitCredentials(authEndpoint, cookies);
+		vi.setSystemTime(new Date('2026-07-26T12:00:30.000Z'));
+		routerHandler.mockRejectedValueOnce(new Error('router failed'));
+		vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+		const response = await handleRequest(
+			new Request(`${contractOrigin}/auth/signin`, {
+				headers: requestHeaders(cookies),
+			}),
+		);
+
+		expect(response.status).toBe(500);
+		expect(response.headers.getSetCookie()).toEqual([]);
+		expect(response.headers.get('cache-control')).toBe('private, no-store');
+		expect(response.headers.get('x-app-version')).toBe(appVersion);
+	});
+
+	it('returns a finalized error without unrelated cookies when session loading fails', async () => {
+		const loadError = new Error('session load failed');
+		const auth: NextAuthBridge = {
+			handle: vi.fn(async () => new Response(null, { status: 204 })),
+			loadSession: vi.fn(async () => {
+				throw loadError;
+			}),
+		};
+		const { handleRequest, routerHandler } = createTestApp(auth);
+		vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+		const response = await handleRequest(new Request(`${contractOrigin}/protected`));
+
+		expect(response.status).toBe(500);
+		expect(response.headers.getSetCookie()).toEqual([]);
+		expect(response.headers.get('cache-control')).toBe('private, no-store');
+		expect(response.headers.get('x-app-version')).toBe(appVersion);
+		expect(routerHandler).not.toHaveBeenCalled();
 	});
 });

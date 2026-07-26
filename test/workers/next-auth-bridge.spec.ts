@@ -113,6 +113,38 @@ describe('NextAuth bridge in the Workers runtime', () => {
 		expect(getSessionCookie(cookies)?.[0]).toBe('__Secure-next-auth.session-token');
 	});
 
+	it('discards malicious forwarded origin headers in workerd', async () => {
+		const originalAuthTrustHost = process.env.AUTH_TRUST_HOST;
+		const originalNextAuthUrl = process.env.NEXTAUTH_URL;
+		try {
+			Reflect.deleteProperty(process.env, 'NEXTAUTH_URL');
+			process.env.AUTH_TRUST_HOST = 'true';
+			const response = await createNextAuthBridge(contractOptions()).handle(
+				new Request('https://preview.example.test/api/auth/providers', {
+					headers: {
+						'x-forwarded-host': 'attacker.example',
+						'x-forwarded-proto': 'http',
+					},
+				}),
+			);
+
+			expect(response.status).toBe(200);
+			const payload = await response.json();
+			expect(payload).toMatchObject({
+				credentials: {
+					callbackUrl: 'https://preview.example.test/api/auth/callback/credentials',
+					signinUrl: 'https://preview.example.test/api/auth/signin/credentials',
+				},
+			});
+			expect(JSON.stringify(payload)).not.toContain('attacker.example');
+		} finally {
+			if (originalAuthTrustHost === undefined) Reflect.deleteProperty(process.env, 'AUTH_TRUST_HOST');
+			else process.env.AUTH_TRUST_HOST = originalAuthTrustHost;
+			if (originalNextAuthUrl === undefined) Reflect.deleteProperty(process.env, 'NEXTAUTH_URL');
+			else process.env.NEXTAUTH_URL = originalNextAuthUrl;
+		}
+	});
+
 	it('enforces supported body limits by encoded byte length', async () => {
 		const bridge = createNextAuthBridge(contractOptions());
 		const boundaryResponse = await bridge.handle(

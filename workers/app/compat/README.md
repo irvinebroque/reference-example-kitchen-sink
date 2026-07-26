@@ -233,9 +233,14 @@ The bridge is covered at three boundaries:
 Run `pnpm run test:unit` and `pnpm run test:workers` independently, or
 `pnpm run test:run` for both layers.
 
-When `NEXTAUTH_URL` is not configured and NextAuth host trust is enabled, the
-bridge preserves caller-provided `x-forwarded-host` and `x-forwarded-proto`
-headers and only derives missing values from the request URL. The Cloudflare
-routing layer is therefore responsible for ensuring those incoming headers
-are trustworthy before the bridge uses them to construct callback origins.
-NextAuth's configured `NEXTAUTH_URL` continues to take precedence when present.
+When `NEXTAUTH_URL` is not configured and `AUTH_TRUST_HOST=true`, the bridge
+allows NextAuth to derive a dynamic origin while making `request.url` the
+security boundary. It overwrites `host`, `x-forwarded-host`, and
+`x-forwarded-proto` with the request URL's host (including any port) and
+protocol. Caller-provided forwarded origin headers are discarded, so they
+cannot poison sign-in or callback URLs.
+
+This supports production custom domains, local ports, and per-commit or
+per-branch Preview URLs without a static `NEXTAUTH_URL`. A configured
+`NEXTAUTH_URL` still takes precedence inside NextAuth and should not be set for
+Previews.

@@ -19,18 +19,23 @@ export interface AppDependencies {
 	handleRouterRequest(request: Request, context: RouterContextProvider): Promise<Response>;
 }
 
-function errorResponse(error: unknown, appVersion: string): Response {
+function errorResponse(error: unknown, appVersion: string, additionalHeaders?: Headers): Response {
 	console.error(
 		JSON.stringify({
 			event: 'app_request_error',
 			message: error instanceof Error ? error.message : 'Unknown error',
 		}),
 	);
-	return finalizeAppResponse(Response.json({ error: 'internal_server_error' }, { status: 500 }), appVersion);
+	return finalizeAppResponse(
+		Response.json({ error: 'internal_server_error' }, { status: 500 }),
+		appVersion,
+		additionalHeaders,
+	);
 }
 
 export function createAppHandler(dependencies: AppDependencies): (request: Request) => Promise<Response> {
 	return async (request) => {
+		let errorResponseHeaders: Headers | undefined;
 		try {
 			const url = new URL(request.url);
 			if (url.pathname === '/health') {
@@ -50,7 +55,8 @@ export function createAppHandler(dependencies: AppDependencies): (request: Reque
 			}
 
 			const { headers: loadedSessionHeaders, session } = await dependencies.auth.loadSession(request);
-			const sessionHeaders = url.pathname === '/auth/signin' ? new Headers() : loadedSessionHeaders;
+			const sessionHeaders = url.pathname === '/auth/signin' ? undefined : loadedSessionHeaders;
+			errorResponseHeaders = sessionHeaders;
 			const context = new RouterContextProvider();
 			context.set(requestContext, {
 				app: dependencies.app,
@@ -62,7 +68,7 @@ export function createAppHandler(dependencies: AppDependencies): (request: Reque
 			const response = await dependencies.handleRouterRequest(request, context);
 			return finalizeAppResponse(response, dependencies.appVersion, sessionHeaders);
 		} catch (error) {
-			return errorResponse(error, dependencies.appVersion);
+			return errorResponse(error, dependencies.appVersion, errorResponseHeaders);
 		}
 	};
 }

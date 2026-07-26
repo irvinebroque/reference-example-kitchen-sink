@@ -205,8 +205,10 @@ Preview that depends on them.
 The Preview app uses `AUTH_TRUST_HOST=true`, allowing NextAuth to construct its
 origin from the current Preview request rather than a single static
 `NEXTAUTH_URL`. This is what allows every PR Preview URL to complete the auth
-flow. The Worker must continue to receive trustworthy host and protocol
-headers.
+flow. The compatibility bridge discards caller-provided forwarded origin
+headers and derives `host`, `x-forwarded-host`, and `x-forwarded-proto` from
+the canonical Worker `request.url`, including local ports. Preview URLs
+therefore remain dynamic without trusting arbitrary forwarded headers.
 
 ### One-time Cloudflare setup
 
@@ -262,12 +264,17 @@ The GitHub Actions workflow uses the deterministic Preview name
 2. CI installs dependencies, type-checks, tests, verifies the provider boundary,
    and builds both Workers.
 3. `wrangler preview --name pr-<number>` creates or updates the app Preview.
-4. CI creates or updates one pull-request comment containing:
+4. CI runs `pnpm run smoke:preview-auth` against the immutable Deployment URL
+   when Wrangler provides one, otherwise against the stable Preview URL. The
+   smoke test checks readiness, callback origins, secure cookies, invalid
+   credentials, and anonymous sign-out without using a valid password.
+5. Only after the smoke test succeeds, CI creates or updates one pull-request
+   comment containing:
    - the stable PR Preview URL for normal review; and
    - the immutable Deployment URL for comparing a specific commit.
-5. Push another commit. CI updates the same Preview, so reviewers keep using the
+6. Push another commit. CI updates the same Preview, so reviewers keep using the
    same stable URL while the immutable URL changes.
-6. Merge or close the pull request. The cleanup job deletes
+7. Merge or close the pull request. The cleanup job deletes
    `pr-<number>` and all deployments under it.
 
 GitHub does not expose repository secrets to untrusted fork pull requests, so
@@ -281,6 +288,7 @@ You can run the same lifecycle manually:
 pnpm run check
 pnpm run build
 pnpm exec wrangler preview --name my-branch
+pnpm run smoke:preview-auth -- https://the-preview-or-deployment-url.example
 pnpm exec wrangler preview delete --name my-branch --skip-confirmation
 ```
 
@@ -315,6 +323,12 @@ test.
 The evaluator-first order ensures the app never ships against a feature-service
 contract that its production binding cannot yet satisfy.
 
+Before accepting production credential traffic, attach the app Worker to a
+controlled custom domain and install the narrowly scoped edge rate-limiting
+rule in [`docs/security/auth-rate-limiting.md`](./docs/security/auth-rate-limiting.md).
+The rule must apply only to credential callback POSTs; Preview URLs should be
+protected separately with Cloudflare Access.
+
 ## Troubleshooting
 
 - Repeated `Cf-Cache-Status: MISS`: verify the app targets
@@ -323,8 +337,8 @@ contract that its production binding cannot yet satisfy.
   inner request contains no cookie or authorization header.
 - Missing auth cookies: verify proxy scheme/host and use HTTPS outside local
   development. For Previews, also confirm `AUTH_TRUST_HOST=true` is present in
-  Preview settings and that no stale `NEXTAUTH_URL` Preview secret overrides
-  the request origin.
+  Preview settings, that no stale `NEXTAUTH_URL` Preview secret overrides the
+  request origin, and that `request.url` contains the expected Preview host.
 - Preview deploy reports missing bindings or secrets: Previews do not inherit
   production settings. Re-run `preview settings update`, list Preview secrets,
   and compare the active Preview settings with `wrangler.jsonc`.

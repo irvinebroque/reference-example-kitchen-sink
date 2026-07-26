@@ -18,6 +18,7 @@
 		"hash-password": "node scripts/hash-demo-password.mjs",
 		"benchmark:config-specs": "node scripts/benchmark-config-specs.mjs",
 		"preview": "wrangler preview",
+		"smoke:preview-auth": "node scripts/smoke-preview-auth.mjs",
 		"start": "vite",
 		"test": "vitest --config vitest.config.mts",
 		"test:unit": "vitest run --config vitest.config.mts",
