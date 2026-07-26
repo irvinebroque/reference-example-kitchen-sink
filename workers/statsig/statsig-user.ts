@@ -1,17 +1,7 @@
-import { z } from 'zod';
 import type { FeatureSubject } from '../../shared/feature-contract';
+import { targetingUserSchema, type TargetingUser } from './targeting-user-contract';
 
-const statsigPrimitiveSchema = z.union([z.string(), z.number(), z.boolean(), z.array(z.string())]);
-
-export const targetingUserSchema = z.object({
-	userID: z.string().min(1),
-	email: z.string().email().optional(),
-	customIDs: z.record(z.string(), z.string()).optional(),
-	custom: z.record(z.string(), statsigPrimitiveSchema).optional(),
-	statsigEnvironment: z.object({ tier: z.string().min(1) }),
-});
-
-export type TargetingUser = z.infer<typeof targetingUserSchema>;
+export type { TargetingUser } from './targeting-user-contract';
 
 export function createStatsigUser(subject: FeatureSubject, env: StatsigEnv): TargetingUser {
 	return targetingUserSchema.parse({

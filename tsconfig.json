@@ -20,6 +20,8 @@
 		"shared/**/*.ts",
 		"types/next-auth.d.ts",
 		"react-router.config.ts",
-		"vite.config.ts"
+		"vite.config.ts",
+		"vite.statsig.config.ts",
+		"zod-compiler.config.ts"
 	]
 }

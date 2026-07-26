@@ -19,6 +19,17 @@ For all limits and quotas, retrieve from the product's `/platform/limits/` page.
 
 Run `wrangler types` after changing bindings in wrangler.jsonc.
 
+## Zod schema compilation
+
+Production and test builds compile the Zod contracts listed in
+`zod-compiler.config.ts`. Keep allowlisted schema modules pure: no I/O,
+environment validation, client initialization, or other module-scope side
+effects. Add new runtime schema modules to the strict allowlist and keep
+`output: "bag"` plus `stripUnknownKeys: true` unless the architecture decision
+is intentionally revisited. Run `pnpm run check:zod-compiler` after changing
+schemas. Never deploy `wrangler.statsig.jsonc` directly; use the repository
+deployment scripts so the generated Vite Worker is deployed.
+
 ## Node.js Compatibility
 
 https://developers.cloudflare.com/workers/runtime-apis/nodejs/

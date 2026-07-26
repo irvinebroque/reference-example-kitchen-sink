@@ -20,6 +20,8 @@
 		"./helpers/**/*.ts",
 		"./unit/app-auth-integration.spec.ts",
 		"./unit/next-auth-bridge.spec.ts",
+		"./unit/schemas.spec.ts",
+		"./unit/zod-compiler-config.spec.ts",
 		"./workers/**/*.spec.ts"
 	]
 }

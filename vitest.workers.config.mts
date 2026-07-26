@@ -1,11 +1,13 @@
 import { cloudflareTest } from '@cloudflare/vitest-pool-workers';
 import { builtinModules } from 'node:module';
 import { defineConfig } from 'vitest/config';
+import { compiledZodSchemas } from './zod-compiler.config';
 
 const nodeBuiltins = [...builtinModules, ...builtinModules.map((moduleName) => `node:${moduleName}`)];
 
 export default defineConfig({
 	plugins: [
+		compiledZodSchemas(),
 		cloudflareTest({
 			miniflare: {
 				serviceBindings: {

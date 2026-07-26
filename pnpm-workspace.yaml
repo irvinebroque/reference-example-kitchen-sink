@@ -8,3 +8,6 @@ allowBuilds:
   esbuild: true
   sharp: true
   workerd: true
+
+minimumReleaseAgeExclude:
+  - zod-compiler@1.18.0

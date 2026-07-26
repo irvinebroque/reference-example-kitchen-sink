@@ -99,9 +99,26 @@ attributes, passes the validated targeting user through typed entrypoint props,
 loads the current config specs, and maps provider results to the application
 contract.
 
-`scripts/guard-feature-boundary.mjs`, which runs as part of `pnpm run check`,
-prevents provider names and imports from appearing under `app/`, `workers/app/`,
-or `shared/`.
+## Build-time schema compilation
+
+This project authors runtime contracts with Zod but does not ship those
+contracts as ordinary runtime schema graphs. Calling `z.object()`, `z.string()`,
+and related constructors at module scope creates objects that every new Worker
+isolate must initialize and retain. Cloudflare includes global-scope parsing and
+execution in Worker startup time, so production and test builds use
+`zod-compiler` to generate validator functions at build time.
+
+The compiler uses `output: "bag"` to remove the original application schema
+objects while retaining the `parse()` and `safeParse()` APIs used here.
+`stripUnknownKeys: true` preserves Zod's default object-sanitizing behavior.
+Plain Vite development and the dedicated fallback test continue to use ordinary
+Zod.
+
+Schema modules in the compiler allowlist must remain pure because automatic
+discovery executes them during the build. Deploy Workers only through the
+repository scripts: directly deploying `wrangler.statsig.jsonc` bypasses Vite
+and schema compilation. See
+[Schema compilation architecture](./docs/architecture/schema-compilation.md).
 
 ## Cache behavior
 
@@ -164,15 +181,9 @@ Use Node.js 24 and the repository-pinned pnpm 11 release.
 pnpm run cf-typegen
 pnpm run check
 pnpm run build
+pnpm run measure:worker-bundles
 pnpm exec wrangler deploy --dry-run
-pnpm exec wrangler deploy --dry-run --config wrangler.statsig.jsonc --env=""
-```
-
-Benchmark a representative production config-specs document before selecting
-Volatile Cache limits:
-
-```sh
-pnpm run benchmark:config-specs -- /path/to/config-specs.json
+pnpm exec wrangler deploy --dry-run --config dist/reference_example_kitchen_sink_statsig/wrangler.json
 ```
 
 ## Preview deployments

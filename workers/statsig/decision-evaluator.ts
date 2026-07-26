@@ -1,15 +1,11 @@
 import type { StatsigServerlessClient } from '@statsig/serverless-client';
-import { z } from 'zod';
 import type { ApplicationDecisions } from '../../shared/feature-contract';
+import { welcomeConfigSchema } from './provider-contract';
 import type { TargetingUser } from './statsig-user';
 
 const REFERENCE_GATE = 'reference_gate';
 const WELCOME_CONFIG = 'welcome_config';
 const DEFAULT_WELCOME_MESSAGE = 'Welcome';
-
-const welcomeConfigSchema = z.object({
-	message: z.string(),
-});
 
 export function evaluateApplicationDecisions(
 	client: StatsigServerlessClient,
