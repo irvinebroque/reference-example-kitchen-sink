@@ -10,16 +10,16 @@ Wrangler prerelease.
 
 A pull-request Preview belongs to the app Worker and has two useful URLs:
 
-- The **stable Preview URL** keeps the same address and points to the latest
-  successful deployment for that Preview name.
+- The **Branch Preview URL** keeps the same address and points to the latest
+  successful deployment for that branch.
 - The **immutable Deployment URL** points to one exact build.
 
 Preview variables, secrets, and bindings are separate from production. They are
 not inherited automatically. Reusing a Preview name updates the same Preview
-and preserves its stable URL.
+and preserves its Branch Preview URL.
 
-The workflow uses `pr-<pull-request-number>` as the Preview name. Closing or
-merging the pull request deletes that Preview and its deployments.
+The workflow uses the pull request's head branch as the Preview name. Closing
+or merging the pull request deletes that Preview and its deployments.
 
 ## Staging feature service
 
@@ -124,21 +124,20 @@ For a same-repository pull request:
 1. CI installs dependencies.
 2. CI verifies that the shared staging Statsig Worker has a deployment.
 3. CI runs type checks, tests, provider-boundary checks, and both Worker builds.
-4. `wrangler preview --name pr-<number>` creates or updates the app Preview.
+4. `wrangler preview` creates or updates the app Preview for the head branch.
 5. CI runs `pnpm run smoke:preview-auth` against the immutable Deployment URL
-   when Wrangler provides one. Otherwise it uses the stable Preview URL.
+   when Wrangler provides one. Otherwise it uses the Branch Preview URL.
 6. The smoke test checks readiness, callback origins, secure cookies, invalid
    credentials, and anonymous sign-out without using a valid password.
 7. After the smoke test succeeds, CI creates or updates one pull-request comment
-   containing the stable Preview URL and, when available, the immutable
-   Deployment URL.
-8. A later successful run updates the same stable Preview URL and produces a new
-   immutable URL.
+   containing the Branch Preview URL.
+8. A later successful run updates the same Branch Preview URL and produces a
+   new immutable Deployment URL for the smoke test.
 9. Closing or merging the pull request deletes the Preview.
 
-If a build, deployment, or smoke test fails, the stable Preview URL continues to
-point to the last successful deployment. It does not necessarily represent the
-latest pull-request commit.
+If a build, deployment, or smoke test fails, the Branch Preview URL continues
+to point to the last successful deployment. It does not necessarily represent
+the latest pull-request commit.
 
 ## Fork pull requests
 
