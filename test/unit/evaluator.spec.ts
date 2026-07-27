@@ -15,7 +15,7 @@ const user: TargetingUser = {
 describe('application decision evaluator', () => {
 	it('maps provider gates and configs to application decisions', () => {
 		expect(evaluateApplicationDecisions(createStatsigServerClient(), user)).toEqual({
-			showReferenceExperience: true,
+			statsigGateEnabled: true,
 			welcomeMessage: 'hello',
 		});
 	});
@@ -26,7 +26,7 @@ describe('application decision evaluator', () => {
 			getDynamicConfig: vi.fn(() => ({ value: { message: 42 } })),
 		} as unknown as StatsigServerlessClient;
 		expect(evaluateApplicationDecisions(client, user)).toEqual({
-			showReferenceExperience: true,
+			statsigGateEnabled: true,
 			welcomeMessage: 'Welcome',
 		});
 	});
@@ -41,7 +41,7 @@ describe('application decision evaluator', () => {
 			}),
 		} as unknown as StatsigServerlessClient;
 		expect(evaluateApplicationDecisions(client, user)).toEqual({
-			showReferenceExperience: false,
+			statsigGateEnabled: false,
 			welcomeMessage: 'Welcome',
 		});
 	});

@@ -10,7 +10,7 @@ export const featureServiceRequestSchema = z.object({
 });
 
 export const applicationDecisionsSchema = z.object({
-	showReferenceExperience: z.boolean(),
+	statsigGateEnabled: z.boolean(),
 	welcomeMessage: z.string(),
 });
 

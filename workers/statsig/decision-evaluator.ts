@@ -3,7 +3,7 @@ import type { ApplicationDecisions } from '../../shared/feature-contract';
 import { welcomeConfigSchema } from './provider-contract';
 import type { TargetingUser } from './statsig-user';
 
-const REFERENCE_GATE = 'reference_gate';
+const STATSIG_GATE = 'reference_gate';
 const WELCOME_CONFIG = 'welcome_config';
 const DEFAULT_WELCOME_MESSAGE = 'Welcome';
 
@@ -11,11 +11,11 @@ export function evaluateApplicationDecisions(
 	client: StatsigServerlessClient,
 	user: TargetingUser,
 ): ApplicationDecisions {
-	let showReferenceExperience = false;
+	let statsigGateEnabled = false;
 	let welcomeMessage = DEFAULT_WELCOME_MESSAGE;
 
 	try {
-		showReferenceExperience = client.checkGate(REFERENCE_GATE, user);
+		statsigGateEnabled = client.checkGate(STATSIG_GATE, user);
 	} catch {
 		// Provider evaluation errors fail closed at the application boundary.
 	}
@@ -28,7 +28,7 @@ export function evaluateApplicationDecisions(
 	}
 
 	return {
-		showReferenceExperience,
+		statsigGateEnabled,
 		welcomeMessage,
 	};
 }

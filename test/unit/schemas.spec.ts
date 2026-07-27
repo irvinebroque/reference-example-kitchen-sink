@@ -10,7 +10,7 @@ import { welcomeConfigSchema } from '../../workers/statsig/provider-contract';
 import { targetingUserSchema } from '../../workers/statsig/targeting-user-contract';
 
 const decisions = {
-	showReferenceExperience: true,
+	statsigGateEnabled: true,
 	welcomeMessage: 'hello',
 };
 
@@ -136,7 +136,7 @@ describe(`feature service contracts (${__ZOD_COMPILER_MODE__})`, () => {
 	it('rejects malformed application decisions and response diagnostics', () => {
 		expect(
 			applicationDecisionsSchema.safeParse({
-				showReferenceExperience: 'true',
+				statsigGateEnabled: 'true',
 				welcomeMessage: 'hello',
 			}).success,
 		).toBe(false);

@@ -18,7 +18,7 @@ export function meta() {
 		{ title: 'Workers reference application' },
 		{
 			name: 'description',
-			content: 'Two-Worker reference for React Router SSR, NextAuth, feature decisions, and Workers Cache.',
+			content: 'Two-Worker reference for React Router SSR, NextAuth, Statsig feature decisions, and Workers Cache.',
 		},
 	];
 }
@@ -32,7 +32,9 @@ export default function Home() {
 					<Text variant="heading1" as="h1">
 						Workers reference
 					</Text>
-					<Text variant="secondary">A small reference for React Router SSR, NextAuth, feature decisions, and Workers Cache.</Text>
+					<Text variant="secondary">
+						A small reference for React Router SSR, NextAuth, Statsig feature decisions, and Workers Cache.
+					</Text>
 				</div>
 				<Badge variant={data?.session?.user ? 'success' : 'neutral'} appearance="dot">
 					{data?.session?.user ? 'Authenticated' : 'Anonymous'}
@@ -106,17 +108,15 @@ export default function Home() {
 					{data?.features ? (
 						<ul className="gate-list">
 							<li>
-								<span>Reference experience</span>
+								<span>
+									Statsig gate <code className="inline-code">reference_gate</code>
+								</span>
 								<Badge
-									variant={data.features.decisions.showReferenceExperience ? 'success' : 'neutral'}
+									variant={data.features.decisions.statsigGateEnabled ? 'success' : 'neutral'}
 									appearance="dot"
 								>
-									{data.features.decisions.showReferenceExperience ? 'Enabled' : 'Disabled'}
+									{data.features.decisions.statsigGateEnabled ? 'Enabled' : 'Disabled'}
 								</Badge>
-							</li>
-							<li>
-								<span>Welcome message</span>
-								<Text>{data.features.decisions.welcomeMessage}</Text>
 							</li>
 						</ul>
 					) : (

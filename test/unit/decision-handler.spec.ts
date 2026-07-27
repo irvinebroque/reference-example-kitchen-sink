@@ -56,7 +56,7 @@ describe('decision handler', () => {
 		} else {
 			expect(await response.json()).toMatchObject({
 				decisions: {
-					showReferenceExperience: true,
+					statsigGateEnabled: true,
 					welcomeMessage: 'hello',
 				},
 				diagnostics: {

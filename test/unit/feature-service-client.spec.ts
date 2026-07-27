@@ -3,7 +3,7 @@ import { createFeatureLoader, loadFeatureSnapshot } from '../../workers/app/feat
 
 const responseBody = {
 	decisions: {
-		showReferenceExperience: true,
+		statsigGateEnabled: true,
 		welcomeMessage: 'hello',
 	},
 	diagnostics: {
@@ -83,7 +83,7 @@ describe('application feature service client', () => {
 			async fetch() {
 				return Response.json({
 					...responseBody,
-					decisions: { ...responseBody.decisions, showReferenceExperience: 'yes' },
+					decisions: { ...responseBody.decisions, statsigGateEnabled: 'yes' },
 				});
 			},
 		};
