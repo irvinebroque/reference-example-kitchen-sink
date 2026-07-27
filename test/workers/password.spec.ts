@@ -10,12 +10,18 @@ describe('password verification in the Workers runtime', () => {
 		await expect(verifyPbkdf2Password('incorrect-password', demoPasswordHash)).resolves.toBe(false);
 	});
 
-	it('rejects malformed or weakened hashes', async () => {
+	it('rejects malformed, weakened, or unsupported hashes', async () => {
 		await expect(verifyPbkdf2Password('demo-password', 'not-a-password-hash')).resolves.toBe(false);
 		await expect(
 			verifyPbkdf2Password(
 				'demo-password',
 				'pbkdf2_sha256$99999$salt$3e2e2605fd3aff7f2c92065d0393ddbb344f20b7dfc7e5de78a840e0eb1b118f',
+			),
+		).resolves.toBe(false);
+		await expect(
+			verifyPbkdf2Password(
+				'demo-password',
+				'pbkdf2_sha256$100001$salt$3e2e2605fd3aff7f2c92065d0393ddbb344f20b7dfc7e5de78a840e0eb1b118f',
 			),
 		).resolves.toBe(false);
 	});

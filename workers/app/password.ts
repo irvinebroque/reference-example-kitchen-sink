@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 
 const encoder = new TextEncoder();
+const PBKDF2_ITERATIONS = 100_000;
 
 function hexToBytes(value: string): Uint8Array | undefined {
 	if (!/^[a-f0-9]+$/i.test(value) || value.length % 2 !== 0) return undefined;
@@ -19,7 +20,7 @@ export async function verifyPbkdf2Password(password: string, encodedHash: string
 
 	const iterations = Number(iterationsValue);
 	const expected = hexToBytes(expectedHex);
-	if (!Number.isSafeInteger(iterations) || iterations < 100_000 || !expected) return false;
+	if (!Number.isSafeInteger(iterations) || iterations !== PBKDF2_ITERATIONS || !expected) return false;
 
 	const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
 	const actual = new Uint8Array(
