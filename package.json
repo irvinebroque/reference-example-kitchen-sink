@@ -4,6 +4,9 @@
 	"private": true,
 	"type": "module",
 	"packageManager": "pnpm@11.17.0",
+	"engines": {
+		"node": "26.5.0"
+	},
 	"scripts": {
 		"build": "WRANGLER_LOG_PATH=/tmp/wrangler.log react-router build",
 		"build:statsig": "node scripts/build-statsig.mjs",

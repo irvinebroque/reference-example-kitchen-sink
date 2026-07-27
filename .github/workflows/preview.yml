@@ -28,7 +28,7 @@ jobs:
           version: 11.17.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 26.5.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run check
@@ -102,7 +102,7 @@ jobs:
           version: 11.17.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 26.5.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Delete Preview
