@@ -18,7 +18,7 @@ export function meta() {
 		{ title: 'Workers reference application' },
 		{
 			name: 'description',
-			content: 'Two-Worker reference for React Router SSR, NextAuth, Statsig feature decisions, and Workers Cache.',
+			content: 'Deployable two-Worker reference for React Router SSR, NextAuth, Statsig feature decisions, and Workers Cache.',
 		},
 	];
 }
@@ -33,7 +33,7 @@ export default function Home() {
 						Workers reference
 					</Text>
 					<Text variant="secondary">
-						A small reference for React Router SSR, NextAuth, Statsig feature decisions, and Workers Cache.
+						A deployable reference for React Router SSR, NextAuth, Statsig feature decisions, and Workers Cache.
 					</Text>
 				</div>
 				<Badge variant={data?.session?.user ? 'success' : 'neutral'} appearance="dot">
