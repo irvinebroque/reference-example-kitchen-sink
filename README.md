@@ -1,191 +1,119 @@
 # Cloudflare Workers reference application
 
-This repository is a deployable two-Worker reference for:
+This project shows how a Cloudflare Workers application can use a separate,
+private Worker to evaluate Statsig feature flags.
 
-- Vite 8 and React Router 8 framework-mode SSR.
+The **app Worker** handles sign-in, React Router server-side rendering, and the
+user interface. When a signed-in page needs a feature decision, it calls the
+**Statsig Worker** through a Service Binding. The Statsig Worker evaluates the
+user and returns application-level decisions without exposing its Statsig
+secret to the app Worker.
+
+The repository demonstrates:
+
+- Vite 8 and React Router 8 server-side rendering.
 - Native Fetch request handling and streaming Web `Response` bodies.
-- Literal `next-auth` 4.24.15 through a narrow compatibility capsule, with the
-  direct `@auth/core` Web API documented as an alternative.
-- A private feature service, backed by Statsig and reached through a Service
-  Binding.
-- Per-user feature decisions cached in Workers Cache, partitioned by
-  `ctx.props`.
-- Statsig remains inside the feature-service Worker, while the application
-  contract and UI clearly identify the gate being evaluated.
-- Volatile Cache for large raw Statsig config specs.
-- Official server-side evaluation through `@statsig/serverless-client` 3.33.3.
+- `next-auth` 4.24.15 behind a compatibility bridge, with `@auth/core`
+  documented as an alternative.
+- A private Statsig service reached through a Service Binding.
+- Per-user Statsig decisions cached with Workers Cache.
+- Downloaded Statsig configuration kept in workerd's shared
+  [Memory Cache](https://github.com/cloudflare/workerd/blob/main/src/workerd/api/memory-cache.h).
+- Server-side evaluation through `@statsig/serverless-client` 3.33.3.
 
-The browser and application Worker contain no Statsig SDK, key, targeting-user
-shape, gate name, or config name.
-
-## Experimental prerequisites
-
-The feature service uses workerd's process-local Volatile Cache through an
-experimental `unsafe.bindings` entry. Local Vite development depends on the
-Wrangler prerelease built from
-[cloudflare/workers-sdk#14868](https://github.com/cloudflare/workers-sdk/pull/14868).
-The package override in `package.json` also forces the Cloudflare Vite plugin to
-use that PR's Miniflare build.
-
-Wrangler does not yet expose this binding in its public schema or generated
-types, so `types/statsig-config-specs-cache.d.ts` supplies the narrow
-`read(key, fallback)` contract. The configured 64 MiB per-value and 128 MiB
-total limits must be validated against a representative config-specs payload.
-
-## Architecture
-
-The application treats `FEATURE_SERVICE` as one service: it supplies an
-authenticated subject and receives application-level feature decisions. It
-does not know about the service's Statsig targeting-user representation,
-configuration loading, or internal cache entrypoint.
+## How it works
 
 ```mermaid
 flowchart LR
-    Browser --> App["App Worker\nAuth + React Router SSR"]
-    App -->|"subject"| Service["Feature service\napplication decisions"]
-    Service --> App
-    Service -.->|"internal implementation"| Statsig["Statsig evaluation + caching"]
+    Browser --> App["App Worker\nSign-in + page rendering"]
+    App -->|"signed-in user"| Gateway["Statsig Worker\nrequest validation"]
+    Gateway --> Decisions["Workers Cache\nper-user decisions"]
+    Decisions --> Evaluator["Statsig evaluation"]
+    Evaluator --> Config["workerd Memory Cache\nStatsig configuration"]
+    Config -->|"refresh when needed"| Statsig["Statsig API"]
+    Evaluator --> App
 ```
 
-The service contract is:
+1. The browser sends a request to the app Worker.
+2. The app Worker loads the session and renders the page.
+3. If the page needs feature data for a signed-in user, the app Worker calls the
+   Statsig Worker through the private `FEATURE_SERVICE` binding.
+4. Workers Cache returns a stored decision when possible. On a cache miss, the
+   Statsig Worker evaluates the user and returns a new decision.
+5. The app Worker uses that decision while rendering the response.
 
-```ts
-FeatureServiceRequest -> FeatureServiceResponse
-```
+The Statsig Worker exposes three entrypoints:
 
-Internally, the feature-service Worker uses two named entrypoints, plus its
-default health handler, to preserve that simple contract while safely caching
-per-user decisions:
-
-| Entrypoint | Purpose | Workers Cache |
+| Entrypoint | What it does | Cached? |
 | --- | --- | --- |
-| `default` | Health | Disabled |
-| `FeatureGatewayEntrypoint` | Validate and normalize neutral subjects | Disabled |
-| `DecisionCacheEntrypoint` | Evaluate and cache application decisions | Enabled |
+| `default` | Reports service health | No |
+| `FeatureGatewayEntrypoint` | Validates and prepares user data from the app | No |
+| `DecisionCacheEntrypoint` | Evaluates and caches the Statsig decision | Yes |
 
-These entrypoints are not separate application services. The app binds only to
-the feature service's gateway; the gateway invokes the cached decision
-entrypoint internally through
-`ctx.exports.DecisionCacheEntrypoint({ props }).fetch()`.
+The app binds only to `FeatureGatewayEntrypoint`. The gateway calls
+`DecisionCacheEntrypoint` internally, which keeps the caching implementation
+out of the app-facing service contract.
 
-### Why the service uses `fetch()` instead of RPC methods
+See [Statsig feature-service architecture](./docs/architecture/feature-service.md)
+for the request format, entrypoint flow, cache keys, failure behavior, and the
+reason this service uses `fetch()` rather than a custom RPC method.
 
-The app calls the service with the Fetch API:
+## Caching
 
-```ts
-FEATURE_SERVICE.fetch(
-  new Request("https://feature.internal/v1/decisions", {
-    method: "POST",
-    body: JSON.stringify({ subject: { id, email } }),
-  }),
-);
-```
+The Statsig Worker uses two caches for different jobs:
 
-This is an HTTP-shaped interface over a private Service Binding; it does not
-send the request over the public Internet. The choice is important because
-[Workers Cache](https://developers.cloudflare.com/workers/cache/) applies only
-to `fetch()` invocations. A custom RPC method such as
-`FEATURE_SERVICE.getDecisions(subject)` would bypass Workers Cache and always
-execute the called entrypoint.
+| Cache | Stores | Purpose |
+| --- | --- | --- |
+| Workers Cache | A Statsig decision for one user | Avoids repeating the same evaluation while the decision is fresh |
+| workerd Memory Cache | Downloaded Statsig configuration | Allows isolates using the same cache in one workerd process to reuse the configuration |
 
-The outer `POST` is intentionally uncached so the feature service can validate
-and normalize the subject on every call. The gateway then makes a fixed
-internal `GET` through the cached decision entrypoint. That inner
-`ctx.exports...fetch()` invocation is eligible for Workers Cache, and its
-trusted targeting-user `ctx.props` automatically partitions the cache by user.
+`ctx.props` is part of the Workers Cache key, so different users receive
+separate cached decisions. User IDs and email addresses are not placed in the
+cache URL or structured evaluation logs.
 
-An RPC facade could still call the same internal cached `fetch()` entrypoint,
-but it would not eliminate the Fetch-based cache boundary. This reference uses
-`fetch()` end to end instead of adding a second API shape solely as a wrapper.
+The Memory Cache is process-local and is not durable storage. Its entries may
+expire or be evicted. If a configuration refresh fails, an isolate that already
+has a valid configuration can continue using that last-known-good copy.
 
-## Authentication implementation choice
+The two caches refresh independently, so a Statsig change may take time to
+appear in every decision. See the
+[feature-service cache behavior](./docs/architecture/feature-service.md#cache-behavior)
+for the exact freshness and stale-response rules.
 
-This repository intentionally uses the public `next-auth` 4.24.15
-Next.js-style API behind a small compatibility bridge. That path is useful when
-an application must preserve an existing NextAuth v4 configuration or when the
-integration itself needs to demonstrate compatibility with the pinned v4
-package.
+## Experimental requirement
 
-For a new Workers integration, evaluate `@auth/core` before writing this kind of
-bridge. `@auth/core` belongs to the same Auth.js/NextAuth project, but its
-`Auth(request, config)` entrypoint accepts a Web `Request` and returns a Web
-`Response` directly. It can therefore remove the Node/Next.js request-response
-translation layer. The application still needs a small auth-service boundary
-for loading sessions, validating the session response, and propagating any
-`Set-Cookie` headers into the final SSR response.
+The workerd Memory Cache binding used by the Statsig Worker is experimental.
+Local development therefore uses the Wrangler prerelease built from
+[cloudflare/workers-sdk#14868](https://github.com/cloudflare/workers-sdk/pull/14868).
+The package override in `package.json` also makes the Cloudflare Vite plugin use
+that PR's Miniflare build.
 
-This repository does not currently import `@auth/core` directly. A project that
-chooses that path should add and pin it as an explicit dependency rather than
-relying on its relationship with `next-auth`. See the
+The binding is not yet part of Wrangler's public schema or generated types, so
+`types/statsig-config-specs-cache.d.ts` provides its small
+`read(key, fallback)` TypeScript contract.
+
+## Authentication
+
+The app uses the public `next-auth` 4.24.15 Next.js-style API through a small
+compatibility bridge.
+
+New Workers integrations should also consider `@auth/core`, which accepts a Web
+`Request` and returns a Web `Response` directly. See the
 [NextAuth v4 bridge documentation](./workers/app/compat/README.md) for a
-side-by-side comparison, example shape, tradeoffs, and migration checklist.
+comparison, migration notes, and implementation details.
 
-## Feature boundary
+## Schema validation
 
-The shared contract in `shared/feature-contract.ts` contains only application
-concepts:
+Runtime contracts are written with Zod. Production builds and the main test
+suites compile an allowlisted set of schemas into validator functions. This
+reduces the Zod setup that each Worker isolate performs at startup.
 
-```ts
-{
-  showReferenceExperience: boolean;
-  welcomeMessage: string;
-}
-```
+Local Vite development and the dedicated fallback test use regular Zod. Deploy
+through the repository scripts: deploying `wrangler.statsig.jsonc` directly
+skips the Vite build and schema compilation.
 
-Authenticated loaders that need decisions call a request-scoped, memoized
-feature loader. Rendering `/` or `/protected` therefore makes at most one
-`FEATURE_SERVICE` request containing only the user's ID and optional normalized
-email. Health, auth, sign-in, and anonymous requests do not call the feature
-service. The Statsig Worker adds trusted application, tenant, and environment
-attributes, passes the validated targeting user through typed entrypoint props,
-loads the current config specs, and maps provider results to the application
-contract.
-
-## Build-time schema compilation
-
-This project authors runtime contracts with Zod but does not ship those
-contracts as ordinary runtime schema graphs. Calling `z.object()`, `z.string()`,
-and related constructors at module scope creates objects that every new Worker
-isolate must initialize and retain. Cloudflare includes global-scope parsing and
-execution in Worker startup time, so production and test builds use
-`zod-compiler` to generate validator functions at build time.
-
-The compiler uses `output: "bag"` to remove the original application schema
-objects while retaining the `parse()` and `safeParse()` APIs used here.
-`stripUnknownKeys: true` preserves Zod's default object-sanitizing behavior.
-Plain Vite development and the dedicated fallback test continue to use ordinary
-Zod.
-
-Schema modules in the compiler allowlist must remain pure because automatic
-discovery executes them during the build. Deploy Workers only through the
-repository scripts: directly deploying `wrangler.statsig.jsonc` bypasses Vite
-and schema compilation. See
-[Schema compilation architecture](./docs/architecture/schema-compilation.md).
-
-## Cache behavior
-
-The internal cache request uses one fixed URL, so user IDs and email addresses
-do not appear in cache URLs. Workers Caching separately includes the full
-normalized targeting user from `ctx.props` in the cache key, which partitions
-cached responses by user. Structured evaluation logs deliberately omit the
-targeting user.
-
-Successful decision responses use:
-
-```http
-Cache-Control: public, max-age={DECISIONS_TTL_SECONDS}, stale-while-revalidate={DECISIONS_STALE_SECONDS}
-```
-
-App, gateway, health, auth, SSR, validation-error, and evaluation-error
-responses are uncached. The config-specs repository reuses its initialized
-server client while the configuration generation is unchanged, preserves the
-absolute expiry returned by the Volatile Cache, and falls back to its
-last-known-good snapshot when refresh fails.
-
-Configuration and decision changes propagate through their bounded TTLs.
-This reference intentionally uses TTL convergence instead of a best-effort
-manual purge: isolate-local repository state and the service's internal
-decision cache cannot be invalidated together atomically.
+See [Build-time Zod schema compilation](./docs/architecture/schema-compilation.md)
+for the compiler configuration, measurements, tests, and upgrade process.
 
 ## Local setup
 
@@ -205,9 +133,8 @@ Use Node.js 24 and the repository-pinned pnpm 11 release.
    ```
 
    Copy the generated value into `DEMO_PASSWORD_HASH`. The shared local
-   `.dev.vars` file supplies both auxiliary Workers, but
-   `STATSIG_SERVER_SECRET` belongs only to the feature service in deployed
-   environments.
+   `.dev.vars` file supplies both Workers. In deployed environments,
+   `STATSIG_SERVER_SECRET` belongs only to the Statsig Worker.
 
 3. Start both Workers:
 
@@ -215,7 +142,7 @@ Use Node.js 24 and the repository-pinned pnpm 11 release.
    pnpm run dev
    ```
 
-4. Open the displayed URL and use `/api/auth/signin`.
+4. Open the displayed URL and visit `/api/auth/signin`.
 
 ## Verification
 
@@ -230,177 +157,47 @@ pnpm exec wrangler deploy --dry-run --config dist/reference_example_kitchen_sink
 
 ## Preview deployments
 
-Cloudflare Workers Previews are the primary change-review workflow for this
-repository. Start with the
-[Workers Previews get-started guide](https://worker-previews-docs-2.preview.developers.cloudflare.com/workers/previews/get-started/).
-The feature is currently private beta in the Wrangler prerelease pinned by this
-repository, so re-check that guide and `pnpm exec wrangler preview --help` when
-updating Wrangler.
+Each trusted pull request receives:
 
-A Preview is an isolated branch deployment of the **app Worker**:
+- a stable Preview URL that points to its latest successful Preview deployment;
+- an immutable Deployment URL for one exact build.
 
-- Its stable Preview URL always serves the newest deployment for that Preview.
-- Each update also has an immutable Deployment URL pinned to that exact build.
-- Preview variables, secrets, and bindings are independent from production;
-  they are not inherited automatically.
-- Reusing a Preview name updates the same Preview and preserves its stable URL.
-- Closing the pull request should delete the Preview and its deployments.
+The Preview app calls the deployed staging Statsig Worker. A service binding
+from a Preview cannot target another Worker's Preview, so Statsig Worker changes
+must be deployed to staging before the app Preview can use them.
 
-The app's `previews` block in `wrangler.jsonc` deliberately binds
-`FEATURE_SERVICE` to
-`reference-example-kitchen-sink-statsig-staging`. A service binding from a
-Preview always invokes the bound Worker's production deployment; it cannot
-target another Worker's Preview. In this architecture, "production deployment
-of the staging feature-service Worker" is the safe shared backend for every app
-Preview. Deploy feature-service changes there before creating or refreshing an app
-Preview that depends on them.
+CI tests and builds both Workers, updates the app Preview, runs the authentication
+smoke test, and posts the URLs on the pull request.
 
-The Preview app uses `AUTH_TRUST_HOST=true`, allowing NextAuth to construct its
-origin from the current Preview request rather than a single static
-`NEXTAUTH_URL`. This is what allows every PR Preview URL to complete the auth
-flow. The compatibility bridge discards caller-provided forwarded origin
-headers and derives `host`, `x-forwarded-host`, and `x-forwarded-proto` from
-the canonical Worker `request.url`, including local ports. Preview URLs
-therefore remain dynamic without trusting arbitrary forwarded headers.
+See [Preview deployment workflow](./docs/deployments/previews.md) for one-time
+setup, secrets, CI behavior, manual commands, authentication details, and
+cleanup.
 
-### One-time Cloudflare setup
+## Production releases
 
-1. Authenticate Wrangler locally, or create a CI API token with permission to
-   manage this Worker and its Previews.
-2. Configure and deploy the staging feature service. Required secrets must exist
-   before deployment validation succeeds:
+Test Statsig Worker changes in staging first. After the app Preview has been
+approved, deploy the production Statsig Worker before the production app. This
+prevents the app from depending on a feature-service contract that has not
+reached production yet.
 
-   ```sh
-   pnpm exec wrangler secret put STATSIG_SERVER_SECRET \
-     --config wrangler.statsig.jsonc \
-     --env staging
-   pnpm run deploy:statsig:staging
-   ```
-
-3. Configure the production app secrets and create its production Worker:
-
-   ```sh
-   pnpm exec wrangler secret put AUTH_SECRET
-   pnpm exec wrangler secret put DEMO_USERNAME
-   pnpm exec wrangler secret put DEMO_PASSWORD_HASH
-   pnpm run deploy:app
-   ```
-
-4. Push the app's Preview settings, then configure the three Preview secrets
-   separately from production:
-
-   ```sh
-   pnpm exec wrangler preview settings update
-   pnpm exec wrangler preview secret put AUTH_SECRET
-   pnpm exec wrangler preview secret put DEMO_USERNAME
-   pnpm exec wrangler preview secret put DEMO_PASSWORD_HASH
-   ```
-
-   The pinned Wrangler currently calls the shared Preview configuration
-   `settings`; the linked beta documentation describes this concept as the
-   Preview base configuration. Use `preview settings update` again when the
-   checked-in `previews` block changes and existing/new Previews should receive
-   that base configuration.
-
-5. Add `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as GitHub Actions
-   repository secrets. Commit `.github/workflows/preview.yml` to the default
-   branch.
-6. Consider protecting Preview and Deployment URLs with Cloudflare Access.
-   Preview URLs are otherwise public.
-
-### Pull request workflow
-
-The GitHub Actions workflow uses the deterministic Preview name
-`pr-<pull-request-number>`:
-
-1. Open or reopen a same-repository pull request.
-2. CI installs dependencies, type-checks, tests, verifies the provider boundary,
-   and builds both Workers.
-3. `wrangler preview --name pr-<number>` creates or updates the app Preview.
-4. CI runs `pnpm run smoke:preview-auth` against the immutable Deployment URL
-   when Wrangler provides one, otherwise against the stable Preview URL. The
-   smoke test checks readiness, callback origins, secure cookies, invalid
-   credentials, and anonymous sign-out without using a valid password.
-5. Only after the smoke test succeeds, CI creates or updates one pull-request
-   comment containing:
-   - the stable PR Preview URL for normal review; and
-   - the immutable Deployment URL for comparing a specific commit.
-6. Push another commit. CI updates the same Preview, so reviewers keep using the
-   same stable URL while the immutable URL changes.
-7. Merge or close the pull request. The cleanup job deletes
-   `pr-<number>` and all deployments under it.
-
-GitHub does not expose repository secrets to untrusted fork pull requests, so
-the workflow intentionally skips those PRs. Test a fork locally or move the
-change to a trusted branch before creating a Cloudflare Preview; do not switch
-to `pull_request_target` and execute untrusted code with deployment credentials.
-
-You can run the same lifecycle manually:
-
-```sh
-pnpm run check
-pnpm run build
-pnpm exec wrangler preview --name my-branch
-pnpm run smoke:preview-auth -- https://the-preview-or-deployment-url.example
-pnpm exec wrangler preview delete --name my-branch --skip-confirmation
-```
-
-When a branch needs different variables, bindings, or test resources, modify
-the `previews` block for settings that should travel with the branch, or change
-that individual Preview in the dashboard. Previews that point to the same
-external resource share its data. Keep Preview credentials and bindings pointed
-at staging/test systems unless production access is an explicit part of the
-test.
-
-## Production release workflow
-
-1. Deploy feature-service changes to the staging feature service.
-2. Create or update the app Preview and exercise auth, SSR, feature evaluation,
-   cache hits, stale behavior, and failure paths.
-3. Merge only after the stable Preview represents the approved commit.
-4. Configure the production feature-service secret if this is its first
-   deployment:
-
-   ```sh
-   pnpm exec wrangler secret put STATSIG_SERVER_SECRET \
-     --config wrangler.statsig.jsonc \
-     --env=""
-   ```
-
-5. Deploy the production feature service before the production app:
-
-   ```sh
-   pnpm run deploy:statsig
-   pnpm run deploy:app
-   ```
-
-The feature-service-first order ensures the app never ships against a service
-contract that its production binding cannot yet satisfy.
-
-Before accepting production credential traffic, attach the app Worker to a
-controlled custom domain and install the narrowly scoped edge rate-limiting
-rule in [`docs/security/auth-rate-limiting.md`](./docs/security/auth-rate-limiting.md).
-The rule must apply only to credential callback POSTs; Preview URLs should be
-protected separately with Cloudflare Access.
+See [Production release workflow](./docs/deployments/production.md) for the full
+release order, secret setup, and security checklist.
 
 ## Troubleshooting
 
-- Repeated `Cf-Cache-Status: MISS`: verify the app's `FEATURE_SERVICE` binding
-  targets the correct feature-service Worker. Internally, confirm its gateway
-  targets `DecisionCacheEntrypoint` with targeting-user `ctx.props` and that
-  the fixed cache request contains no cookie or authorization header.
-- Missing auth cookies: verify proxy scheme/host and use HTTPS outside local
-  development. For Previews, also confirm `AUTH_TRUST_HOST=true` is present in
-  Preview settings, that no stale `NEXTAUTH_URL` Preview secret overrides the
-  request origin, and that `request.url` contains the expected Preview host.
-- Preview deploy reports missing bindings or secrets: Previews do not inherit
-  production settings. Re-run `preview settings update`, list Preview secrets,
-  and compare the active Preview settings with `wrangler.jsonc`.
-- Preview app reaches the wrong feature service: service bindings target the bound
-  Worker's production deployment. Confirm the Preview binding names the
-  separate `reference-example-kitchen-sink-statsig-staging` Worker.
-- Feature-service `503`: inspect structured logs for download, timeout,
-  config-specs initialization, or decision evaluation failures.
-- High config-specs memory usage: run `pnpm run benchmark:config-specs` against
-  a representative payload and revisit the configured per-value and total
-  Volatile Cache limits.
+- **Repeated `Cf-Cache-Status: MISS`:** confirm `FEATURE_SERVICE` targets the
+  correct Statsig Worker, then review the internal entrypoint and cache-key flow
+  in the [feature-service architecture guide](./docs/architecture/feature-service.md).
+- **Missing authentication cookies:** use HTTPS outside local development. For
+  Previews, verify `AUTH_TRUST_HOST=true` and remove any stale Preview
+  `NEXTAUTH_URL` secret.
+- **Preview reports missing bindings or secrets:** Preview settings are separate
+  from production. Follow the
+  [Preview setup checklist](./docs/deployments/previews.md#one-time-cloudflare-setup).
+- **Preview reaches the wrong Statsig Worker:** confirm its `FEATURE_SERVICE`
+  binding names `reference-example-kitchen-sink-statsig-staging`.
+- **Statsig Worker returns `503`:** inspect structured logs for download,
+  timeout, configuration initialization, or decision-evaluation failures.
+- **High configuration memory use:** run `pnpm run benchmark:config-specs`
+  against a representative Statsig configuration and review the Memory Cache
+  limits in `wrangler.statsig.jsonc`.
