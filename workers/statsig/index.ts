@@ -26,14 +26,19 @@ function getConfigSpecsRepository(env: StatsigEnv): ConfigSpecsRepository {
 			return response.text();
 		},
 		positiveNumberSetting(env.CONFIG_SPECS_TTL_SECONDS, 300),
-		env.STATSIG_EXPOSURE_LOGGING_ENABLED === 'true',
+		env.STATSIG_EXPOSURE_LOGGING_ENABLED === 'true' ||
+			env.STATSIG_PRODUCT_EVENT_LOGGING_ENABLED === 'true',
 	);
 	return configSpecsRepository;
 }
 
 export class FeatureGatewayEntrypoint extends WorkerEntrypoint<StatsigEnv> {
 	fetch(request: Request): Promise<Response> {
-		return handleGatewayRequest(request, this.env, this.ctx.exports.DecisionCacheEntrypoint);
+		return handleGatewayRequest(request, this.env, {
+			decisionEntrypoint: this.ctx.exports.DecisionCacheEntrypoint,
+			repository: getConfigSpecsRepository(this.env),
+			scheduleBackgroundTask: (promise) => this.ctx.waitUntil(promise),
+		});
 	}
 }
 

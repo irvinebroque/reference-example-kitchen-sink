@@ -15,7 +15,9 @@ cannot yet satisfy.
 2. Create or update the app Preview.
 
 3. Test authentication, server-side rendering, feature evaluation, cache hits,
-   stale responses, and failure paths.
+   stale responses, and failure paths. If a genuine `reference_gate` usage
+   action exists, exercise it in staging and confirm the custom event plus a
+   sanitized `statsig_logs_flushed` log.
 
 4. Merge only after the stable Preview URL points to the approved successful
    deployment.
@@ -35,11 +37,18 @@ cannot yet satisfy.
    pnpm run deploy:statsig
    ```
 
+   Production initially keeps
+   `STATSIG_PRODUCT_EVENT_LOGGING_ENABLED=false`.
+
 7. Deploy the production app:
 
    ```sh
    pnpm run deploy:app
    ```
+
+8. After validating the real production usage action, change
+   `STATSIG_PRODUCT_EVENT_LOGGING_ENABLED` to `true` and redeploy the Statsig
+   Worker. Do not enable the flag based on a fabricated page-view event.
 
 The combined deployment script follows the same order:
 

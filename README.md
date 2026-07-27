@@ -16,6 +16,8 @@ The repository demonstrates:
 - `next-auth` 4.24.15 behind a compatibility bridge, with `@auth/core`
   documented as an alternative.
 - A private Statsig service reached through a Service Binding.
+- A typed, best-effort product-event reporting path through the same private
+  service.
 - Per-user Statsig decisions cached with Workers Cache.
 - Downloaded Statsig configuration kept in workerd's shared
   [Memory Cache](https://github.com/cloudflare/workerd/blob/main/src/workerd/api/memory-cache.h).
@@ -98,6 +100,30 @@ separate product event.
 
 Normalized email is available to Statsig targeting under `privateAttributes`
 and is removed by the SDK before exposure events are sent.
+
+## Statsig product-event reporting
+
+The shared contract accepts only `reference_gate_used`. The app-side reporter
+posts the authenticated subject to
+`POST /v1/events/reference-gate-used`, waits for the private Statsig Worker to
+accept the event with `202`, and logs only sanitized failure details. Reporting
+errors never throw into the feature action.
+
+The Statsig Worker creates all event metadata from trusted deployment
+configuration. It never accepts caller metadata. Product-event delivery is
+enabled only when `STATSIG_PRODUCT_EVENT_LOGGING_ENABLED` is exactly `true`.
+Local development and production initially set it to `false`; staging sets it
+to `true`.
+
+When either exposure or product-event reporting is enabled, the Statsig SDK can
+send queued events. Flush work runs under `ctx.waitUntil()` and does not delay
+the `202`. Successful SDK batches log only `batchSize`; network and unexpected
+failures log only sanitized error types. Event contents are never written to
+Worker logs, and the SDK removes `privateAttributes.email` from its payload.
+
+The application currently has no genuine action that uses `reference_gate`, so
+the reporter is intentionally not connected to a page view or synthetic
+interaction. Add the call to the real feature action when one exists.
 
 ## Experimental Memory Cache requirement
 
