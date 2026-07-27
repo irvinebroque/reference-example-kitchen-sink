@@ -206,22 +206,3 @@ reached production yet.
 
 See [Production release workflow](./docs/deployments/production.md) for the full
 release order, secret setup, and security checklist.
-
-## Troubleshooting
-
-- **Repeated `Cf-Cache-Status: MISS`:** confirm `FEATURE_SERVICE` targets the
-  correct Statsig Worker, then review the internal entrypoint and cache-key flow
-  in the [feature-service architecture guide](./docs/architecture/feature-service.md).
-- **Missing authentication cookies:** use HTTPS outside local development. For
-  Previews, verify `AUTH_TRUST_HOST=true` and remove any stale Preview
-  `NEXTAUTH_URL` secret.
-- **Preview reports missing bindings or secrets:** Preview settings are separate
-  from production. Follow the
-  [Preview setup checklist](./docs/deployments/previews.md#one-time-cloudflare-setup).
-- **Preview reaches the wrong Statsig Worker:** confirm its `FEATURE_SERVICE`
-  binding names `reference-example-kitchen-sink-statsig-staging`.
-- **Statsig Worker returns `503`:** inspect structured logs for download,
-  timeout, configuration initialization, or decision-evaluation failures.
-- **High configuration memory use:** run `pnpm run benchmark:config-specs`
-  against a representative Statsig configuration and review the Memory Cache
-  limits in `wrangler.statsig.jsonc`.
