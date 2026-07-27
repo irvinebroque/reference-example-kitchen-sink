@@ -16,6 +16,22 @@ Compiling at build time reduces the schema code and initialization work shipped
 to Workers. This helps avoid expensive global-scope work during
 [Worker startup](https://developers.cloudflare.com/workers/platform/limits/#worker-startup-time).
 
+## Why this matters on Workers
+
+A top-level `z.object()` builds a graph of JavaScript schema objects when each
+Worker isolate starts. Before the isolate can handle a request, it must:
+
+1. parse the bundled Zod implementation and schema definitions; and
+2. run every schema constructor in global scope.
+
+The isolate then keeps that schema graph in memory. Large schemas therefore add
+both startup work and retained memory, even though most requests only need the
+resulting validation functions.
+
+`zod-compiler` moves that construction to build time. The Worker receives
+smaller validator bags instead of rebuilding the full Zod object graph at
+startup.
+
 ## Rules
 
 Allowlisted contract modules must be pure. They may define and export schemas,
