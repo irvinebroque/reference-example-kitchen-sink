@@ -12,9 +12,6 @@ concurrency:
   group: worker-preview-pr-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
-env:
-  PREVIEW_NAME: pr-${{ github.event.pull_request.number }}
-
 jobs:
   preview:
     if: >-
@@ -51,7 +48,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          output="$(pnpm exec wrangler preview --name "$PREVIEW_NAME" --json)"
+          output="$(pnpm exec wrangler preview --json)"
           printf '%s\n' "$output"
           json="$(printf '%s\n' "$output" | sed -n '/^{/,$p')"
           preview_url="$(printf '%s' "$json" | jq -er '.preview.urls[0]')"
@@ -122,4 +119,4 @@ jobs:
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: pnpm exec wrangler preview delete --name "$PREVIEW_NAME" --skip-confirmation
+        run: pnpm exec wrangler preview delete --skip-confirmation
