@@ -141,7 +141,7 @@ for the compiler configuration, measurements, tests, and upgrade process.
 
 ## Local setup
 
-Use Node.js 24 and the repository-pinned pnpm 11 release.
+Use Node.js 26.5.0 and the repository-pinned pnpm 11 release.
 
 1. Install dependencies:
 
