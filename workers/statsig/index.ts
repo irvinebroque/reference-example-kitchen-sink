@@ -10,7 +10,7 @@ let configSpecsRepository: ConfigSpecsRepository | undefined;
 function getConfigSpecsRepository(env: StatsigEnv): ConfigSpecsRepository {
 	configSpecsRepository ??= new ConfigSpecsRepository(
 		env.STATSIG_SERVER_SECRET,
-		env.CONFIG_SPECS_CACHE,
+		env.CACHE,
 		async (signal) => {
 			const response = await fetch('https://api.statsig.com/v1/download_config_specs', {
 				headers: {

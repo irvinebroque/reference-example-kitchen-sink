@@ -88,6 +88,11 @@ Local development therefore uses the Wrangler prerelease built from
 The package override in `package.json` also makes the Cloudflare Vite plugin use
 that PR's Miniflare build.
 
+Deployed Workers attach the account-level `volatile-cache-test` binding grant.
+That grant injects the `CACHE` binding; the Worker must not also upload a direct
+`volatile_cache` binding. During `vite` development, `vite.config.ts` replaces
+the deployment-only grant with a local `volatile_cache` binding.
+
 The binding is not yet part of Wrangler's public schema or generated types, so
 `types/statsig-config-specs-cache.d.ts` provides its small
 `read(key, fallback)` TypeScript contract.

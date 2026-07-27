@@ -39,12 +39,8 @@
 	"unsafe": {
 		"bindings": [
 			{
-				"name": "CONFIG_SPECS_CACHE",
-				"type": "volatile_cache",
-				"cache_id": "reference-example-kitchen-sink-statsig-config-specs",
-				"max_keys": 4,
-				"max_value_size": 67108864,
-				"max_total_value_size": 134217728,
+				"name": "volatile-cache-test",
+				"type": "internal_capability_grants",
 			},
 		],
 	},
@@ -66,12 +62,8 @@
 			"unsafe": {
 				"bindings": [
 					{
-						"name": "CONFIG_SPECS_CACHE",
-						"type": "volatile_cache",
-						"cache_id": "reference-example-kitchen-sink-statsig-staging-config-specs",
-						"max_keys": 4,
-						"max_value_size": 67108864,
-						"max_total_value_size": 134217728,
+						"name": "volatile-cache-test",
+						"type": "internal_capability_grants",
 					},
 				],
 			},

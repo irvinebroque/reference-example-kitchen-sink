@@ -3,7 +3,7 @@ import { reactRouter } from '@react-router/dev/vite';
 import { defineConfig } from 'vite';
 import { compiledZodSchemas } from './zod-compiler.config';
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
 	optimizeDeps: {
 		include: [
 			'@cloudflare/kumo/components/badge',
@@ -22,8 +22,31 @@ export default defineConfig({
 		compiledZodSchemas(),
 		cloudflare({
 			viteEnvironment: { name: 'ssr' },
-			auxiliaryWorkers: [{ configPath: './wrangler.statsig.jsonc' }],
+			auxiliaryWorkers: [
+				{
+					configPath: './wrangler.statsig.jsonc',
+					config:
+						command === 'serve'
+							? (workerConfig) => {
+									Object.assign(workerConfig, {
+										unsafe: {
+											bindings: [
+												{
+													name: 'CACHE',
+													type: 'volatile_cache',
+													cache_id: 'reference-example-kitchen-sink-statsig-config-specs',
+													max_keys: 4,
+													max_value_size: 67_108_864,
+													max_total_value_size: 134_217_728,
+												},
+											],
+										},
+									});
+								}
+							: undefined,
+				},
+			],
 		}),
 		reactRouter(),
 	],
-});
+}));

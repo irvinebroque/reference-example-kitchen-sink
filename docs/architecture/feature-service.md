@@ -157,20 +157,16 @@ purge them together.
 
 ## Experimental Memory Cache binding
 
-The Statsig Worker configures Memory Cache through this experimental Wrangler
-shape:
+The deployed Statsig Worker attaches the account-level binding grant that
+injects its `CACHE` binding:
 
 ```jsonc
 {
   "unsafe": {
     "bindings": [
       {
-        "name": "CONFIG_SPECS_CACHE",
-        "type": "volatile_cache",
-        "cache_id": "reference-example-kitchen-sink-statsig-config-specs",
-        "max_keys": 4,
-        "max_value_size": 67108864,
-        "max_total_value_size": 134217728
+        "name": "volatile-cache-test",
+        "type": "internal_capability_grants"
       }
     ]
   }
@@ -179,7 +175,9 @@ shape:
 
 Local Vite development uses the Wrangler prerelease built by
 [cloudflare/workers-sdk#14868](https://github.com/cloudflare/workers-sdk/pull/14868),
-which connects this configuration to workerd's Memory Cache in Miniflare.
+and `vite.config.ts` replaces the deployment-only grant with a direct local
+`volatile_cache` binding named `CACHE`. Binding grants are not available in
+local or remote development.
 
 Wrangler does not currently generate a public type for the binding. The narrow
 TypeScript declaration in `types/statsig-config-specs-cache.d.ts` documents the
