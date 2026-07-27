@@ -8,7 +8,7 @@ const WELCOME_CONFIG = 'welcome_config';
 const DEFAULT_WELCOME_MESSAGE = 'Welcome';
 
 export interface ExposurePolicy {
-	logGateExposure: boolean;
+	logExposures: boolean;
 }
 
 export function evaluateApplicationDecisions(
@@ -21,7 +21,7 @@ export function evaluateApplicationDecisions(
 
 	try {
 		statsigGateEnabled = client.checkGate(STATSIG_GATE, user, {
-			disableExposureLog: !exposurePolicy.logGateExposure,
+			disableExposureLog: !exposurePolicy.logExposures,
 		});
 	} catch {
 		// Provider evaluation errors fail closed at the application boundary.
@@ -29,7 +29,7 @@ export function evaluateApplicationDecisions(
 
 	try {
 		const parsedWelcome = welcomeConfigSchema.safeParse(
-			client.getDynamicConfig(WELCOME_CONFIG, user, { disableExposureLog: true }).value,
+			client.getDynamicConfig(WELCOME_CONFIG, user, { disableExposureLog: !exposurePolicy.logExposures }).value,
 		);
 		if (parsedWelcome.success) welcomeMessage = parsedWelcome.data.message;
 	} catch {

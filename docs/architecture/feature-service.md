@@ -88,8 +88,8 @@ wrapper around it.
 5. Workers Cache checks for a response with the same entrypoint, path, Worker
    version, and `ctx.props`.
 6. On a miss, the decision entrypoint loads the current Statsig configuration,
-   evaluates the application decisions, schedules any enabled gate exposure
-   flush, and returns a cacheable response.
+   evaluates the application decisions, schedules any enabled exposure flush,
+   and returns a cacheable response.
 7. On a hit, Workers Cache returns the stored response without running the
    decision entrypoint.
 
@@ -129,11 +129,9 @@ exactly `true`. The Statsig client then uses `loggingEnabled: "always"` and
 allows traffic to the event endpoint. Missing values and all other values keep
 SDK logging disabled and prevent Statsig network traffic.
 
-The decision evaluator uses Statsig's automatic exposure from
-`checkGate("reference_gate")`. It always suppresses exposure for
-`welcome_config` because the application does not currently consume that
-configuration value. That suppression should be removed only after the value is
-rendered or otherwise used.
+The decision evaluator uses Statsig's automatic exposures from
+`checkGate("reference_gate")` and `getDynamicConfig("welcome_config")`. The
+application renders both returned decisions on the protected page.
 
 For a successful GET on a decision-cache miss, the decision entrypoint passes
 `client.flush()` to `ctx.waitUntil()` after evaluation and response
@@ -143,7 +141,7 @@ response.
 
 Workers Cache hits do not run the decision entrypoint and are not additional
 exposures. HEAD requests evaluate with exposure logging suppressed and do not
-flush. Exposure counts therefore measure evaluated gate decisions, not page
+flush. Exposure counts therefore measure evaluated provider decisions, not page
 views or confirmed feature use. Actual use should be recorded as a separate
 product event.
 

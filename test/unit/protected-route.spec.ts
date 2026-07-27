@@ -15,6 +15,44 @@ function loaderArgs(context: RouterContextProvider): LoaderFunctionArgs {
 }
 
 describe('protected route', () => {
+	it('loads the configured welcome message for authenticated users', async () => {
+		const context = new RouterContextProvider();
+		context.set(requestContext, {
+			app: {
+				applicationId: 'test-app',
+				environment: 'test',
+				version: 'test',
+			},
+			async getFeatures() {
+				return {
+					decisions: {
+						statsigGateEnabled: true,
+						welcomeMessage: 'Hello from Statsig',
+					},
+					diagnostics: {
+						cacheStatus: 'MISS',
+						configurationGeneration: '1',
+						configurationStale: false,
+						evaluationDurationMs: 1,
+						evaluatorVersion: 'test',
+						payloadBytes: 64,
+					},
+				};
+			},
+			session: {
+				expires: '2099-01-01T00:00:00.000Z',
+				user: {
+					id: 'test-user',
+					name: 'Test User',
+				},
+			},
+		});
+
+		const result = await loader(loaderArgs(context));
+
+		expect(result.features?.decisions.welcomeMessage).toBe('Hello from Statsig');
+	});
+
 	it('redirects before requesting features for unauthenticated users', async () => {
 		let featureRequests = 0;
 		const context = new RouterContextProvider();
