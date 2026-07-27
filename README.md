@@ -99,7 +99,7 @@ separate product event.
 Normalized email is available to Statsig targeting under `privateAttributes`
 and is removed by the SDK before exposure events are sent.
 
-## Experimental requirement
+## Experimental Memory Cache requirement
 
 The workerd Memory Cache binding used by the Statsig Worker is experimental.
 Local development therefore uses the Wrangler prerelease built from
