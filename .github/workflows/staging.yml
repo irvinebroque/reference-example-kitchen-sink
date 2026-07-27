@@ -1,0 +1,59 @@
+name: Deploy Statsig staging
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/staging.yml"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "scripts/build-statsig.mjs"
+      - "shared/feature-contract.ts"
+      - "vite.statsig.config.ts"
+      - "workers/statsig/**"
+      - "wrangler.statsig.jsonc"
+      - "zod-compiler.config.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: worker-statsig-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26.5.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run check
+      - name: Deploy staging feature service
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          STATSIG_SERVER_SECRET: ${{ secrets.STATSIG_SERVER_SECRET }}
+        run: |
+          if [[ -z "$STATSIG_SERVER_SECRET" ]]; then
+            echo "::error::Missing the STATSIG_SERVER_SECRET repository secret."
+            exit 1
+          fi
+
+          secrets_file="$RUNNER_TEMP/statsig-staging-secrets.json"
+          trap 'rm -f "$secrets_file"' EXIT
+          umask 077
+          jq -n --arg value "$STATSIG_SERVER_SECRET" \
+            '{STATSIG_SERVER_SECRET: $value}' > "$secrets_file"
+
+          pnpm run build:statsig:staging
+          pnpm exec wrangler deploy \
+            --config dist/reference_example_kitchen_sink_statsig/wrangler.json \
+            --secrets-file "$secrets_file"
