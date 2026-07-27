@@ -141,7 +141,7 @@ for the compiler configuration, measurements, tests, and upgrade process.
 
 ## Local setup
 
-Use Node.js 24 and the repository-pinned pnpm 11 release.
+Use Node.js 26.5.0 and the repository-pinned pnpm 11 release.
 
 1. Install dependencies:
 
@@ -203,6 +203,9 @@ Test Statsig Worker changes in staging first. After the app Preview has been
 approved, deploy the production Statsig Worker before the production app. This
 prevents the app from depending on a feature-service contract that has not
 reached production yet.
+
+Merges to `main` run `.github/workflows/deploy.yml`, which verifies the project
+and runs the combined deployment script in that order.
 
 See [Production release workflow](./docs/deployments/production.md) for the full
 release order, secret setup, and security checklist.
