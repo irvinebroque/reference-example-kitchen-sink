@@ -24,7 +24,7 @@ The repository demonstrates:
 - Server-side evaluation through `@statsig/serverless-client` 3.33.3.
 
 ## How it works
-
+ddfsdfs
 ```mermaid
 flowchart LR
     Browser --> App["App Worker\nSign-in + page rendering"]
