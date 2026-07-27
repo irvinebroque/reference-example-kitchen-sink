@@ -41,8 +41,8 @@ jobs:
         run: |
           output="$(pnpm exec wrangler preview --name "$PREVIEW_NAME" --json)"
           printf '%s\n' "$output"
-          preview_url="$(printf '%s' "$output" | jq -er '.preview_url')"
-          deployment_url="$(printf '%s' "$output" | jq -r '.deployment_url // empty')"
+          preview_url="$(printf '%s' "$output" | jq -er '.preview_urls[0]')"
+          deployment_url="$(printf '%s' "$output" | jq -r '.deployment_urls[0] // empty')"
           echo "preview_url=$preview_url" >> "$GITHUB_OUTPUT"
           echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"
       - name: Smoke-test Preview authentication

@@ -204,5 +204,8 @@ approved, deploy the production Statsig Worker before the production app. This
 prevents the app from depending on a feature-service contract that has not
 reached production yet.
 
+Merges to `main` run `.github/workflows/deploy.yml`, which verifies the project
+and runs the combined deployment script in that order.
+
 See [Production release workflow](./docs/deployments/production.md) for the full
 release order, secret setup, and security checklist.
