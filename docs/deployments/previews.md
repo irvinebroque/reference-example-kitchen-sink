@@ -58,6 +58,10 @@ request origin and break sign-in callbacks.
 Authenticate Wrangler locally, or create a CI API token that can manage the app
 Worker and its Previews.
 
+The Cloudflare account must also have access to the Worker Previews private
+beta. Error `10015` means the feature is not enabled for the account selected by
+`CLOUDFLARE_ACCOUNT_ID`.
+
 ### 2. Configure and deploy the staging Statsig Worker
 
 Add these repository secrets in GitHub:
@@ -168,6 +172,12 @@ dashboard.
 Preview configuration is separate from production. Run
 `pnpm exec wrangler preview settings update`, list the Preview secrets, and
 compare the active Preview settings with `wrangler.jsonc`.
+
+### Preview creation returns error 10015
+
+Worker Previews is not enabled for the Cloudflare account. Confirm that
+`CLOUDFLARE_ACCOUNT_ID` selects the intended account and have the private beta
+enabled before rerunning the workflow.
 
 ### Preview reaches the wrong Statsig Worker
 

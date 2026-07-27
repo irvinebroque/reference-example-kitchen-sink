@@ -47,6 +47,15 @@ The combined deployment script follows the same order:
 pnpm run deploy
 ```
 
+## GitHub Actions
+
+`.github/workflows/deploy.yml` runs on every push to `main` and can also be
+started manually. It installs the locked dependencies, runs the full project
+check, and then runs `pnpm run deploy`.
+
+Add `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` as repository secrets.
+The API token must be able to deploy both Workers.
+
 ## Security checklist
 
 Before accepting production credential traffic:
