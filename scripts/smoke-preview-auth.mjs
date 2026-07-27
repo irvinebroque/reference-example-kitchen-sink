@@ -4,7 +4,7 @@ import { runPreviewAuthSmoke, smokeConfiguration } from './preview-auth-smoke.mj
 
 const targetUrl = process.argv[2];
 if (!targetUrl || process.argv.length > 3) {
-	console.error('Usage: pnpm run smoke:preview-auth -- https://preview.example');
+	console.error('Usage: pnpm run smoke:preview-auth https://preview.example');
 	process.exitCode = 2;
 } else {
 	try {

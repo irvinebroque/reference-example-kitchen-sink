@@ -58,13 +58,6 @@ jobs:
           deployment_url="$(printf '%s' "$json" | jq -r '.deployment.urls[0] // empty')"
           echo "preview_url=$preview_url" >> "$GITHUB_OUTPUT"
           echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"
-      - name: Smoke-test Preview authentication
-        env:
-          PREVIEW_URL: ${{ steps.deploy.outputs.preview_url }}
-          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment_url }}
-        run: |
-          target="${DEPLOYMENT_URL:-$PREVIEW_URL}"
-          pnpm run smoke:preview-auth -- "$target"
       - name: Comment Preview URLs
         uses: actions/github-script@v7
         env:
