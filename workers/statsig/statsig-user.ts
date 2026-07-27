@@ -6,7 +6,7 @@ export type { TargetingUser } from './targeting-user-contract';
 export function createStatsigUser(subject: FeatureSubject, env: StatsigEnv): TargetingUser {
 	return targetingUserSchema.parse({
 		userID: subject.id,
-		email: subject.email,
+		privateAttributes: subject.email ? { email: subject.email } : undefined,
 		customIDs: {
 			applicationID: env.APP_ID,
 		},

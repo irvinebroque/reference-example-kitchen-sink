@@ -7,21 +7,30 @@ const STATSIG_GATE = 'reference_gate';
 const WELCOME_CONFIG = 'welcome_config';
 const DEFAULT_WELCOME_MESSAGE = 'Welcome';
 
+export interface ExposurePolicy {
+	logGateExposure: boolean;
+}
+
 export function evaluateApplicationDecisions(
 	client: StatsigServerlessClient,
 	user: TargetingUser,
+	exposurePolicy: ExposurePolicy,
 ): ApplicationDecisions {
 	let statsigGateEnabled = false;
 	let welcomeMessage = DEFAULT_WELCOME_MESSAGE;
 
 	try {
-		statsigGateEnabled = client.checkGate(STATSIG_GATE, user);
+		statsigGateEnabled = client.checkGate(STATSIG_GATE, user, {
+			disableExposureLog: !exposurePolicy.logGateExposure,
+		});
 	} catch {
 		// Provider evaluation errors fail closed at the application boundary.
 	}
 
 	try {
-		const parsedWelcome = welcomeConfigSchema.safeParse(client.getDynamicConfig(WELCOME_CONFIG, user).value);
+		const parsedWelcome = welcomeConfigSchema.safeParse(
+			client.getDynamicConfig(WELCOME_CONFIG, user, { disableExposureLog: true }).value,
+		);
 		if (parsedWelcome.success) welcomeMessage = parsedWelcome.data.message;
 	} catch {
 		// Malformed or unsupported provider data uses the application default.

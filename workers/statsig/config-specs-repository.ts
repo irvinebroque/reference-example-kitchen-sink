@@ -30,11 +30,20 @@ function readConfigSpecsTime(rawJson: string): string {
 	return String(time);
 }
 
-function createClientFromConfigSpecs(serverSecret: string, rawJson: string): StatsigServerlessClient {
-	const client = new StatsigServerlessClient(serverSecret, {
-		loggingEnabled: 'disabled',
-		networkConfig: { preventAllNetworkTraffic: true },
-	});
+function createClientFromConfigSpecs(
+	serverSecret: string,
+	rawJson: string,
+	exposureLoggingEnabled: boolean,
+): StatsigServerlessClient {
+	const client = new StatsigServerlessClient(
+		serverSecret,
+		exposureLoggingEnabled
+			? { loggingEnabled: 'always' }
+			: {
+					loggingEnabled: 'disabled',
+					networkConfig: { preventAllNetworkTraffic: true },
+				},
+	);
 	client.dataAdapter.setData(rawJson);
 	const details = client.initializeSync();
 	if (!details.success || details.source !== 'Bootstrap') {
@@ -51,6 +60,7 @@ export class ConfigSpecsRepository {
 		private readonly configSpecsCache: ConfigSpecsCacheBinding,
 		private readonly fetchConfigSpecs: (signal: AbortSignal) => Promise<string>,
 		private readonly ttlSeconds: number,
+		private readonly exposureLoggingEnabled = false,
 		private readonly timeoutMs = 8_000,
 	) {}
 
@@ -88,7 +98,7 @@ export class ConfigSpecsRepository {
 		const client =
 			this.lastKnownGood?.time === time
 				? this.lastKnownGood.client
-				: createClientFromConfigSpecs(this.serverSecret, cached.rawJson);
+				: createClientFromConfigSpecs(this.serverSecret, cached.rawJson, this.exposureLoggingEnabled);
 		const snapshot = {
 			time,
 			client,

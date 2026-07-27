@@ -5,6 +5,7 @@ import { noStoreJson, positiveNumberSetting } from './responses';
 import type { TargetingUser } from './statsig-user';
 
 type DecisionRepository = Pick<ConfigSpecsRepository, 'get'>;
+type BackgroundTaskScheduler = (promise: Promise<unknown>) => void;
 
 export interface DecisionCacheProps {
 	targetingUser: TargetingUser;
@@ -15,6 +16,7 @@ export async function handleDecisionRequest(
 	env: StatsigEnv,
 	configSpecsRepository: DecisionRepository,
 	{ targetingUser }: DecisionCacheProps,
+	scheduleBackgroundTask: BackgroundTaskScheduler,
 ): Promise<Response> {
 	const startedAt = performance.now();
 	if (request.method !== 'GET' && request.method !== 'HEAD') {
@@ -26,7 +28,10 @@ export async function handleDecisionRequest(
 
 	try {
 		const snapshot = await configSpecsRepository.get();
-		const decisions = evaluateApplicationDecisions(snapshot.client, targetingUser);
+		const exposureLoggingEnabled = env.STATSIG_EXPOSURE_LOGGING_ENABLED === 'true';
+		const decisions = evaluateApplicationDecisions(snapshot.client, targetingUser, {
+			logGateExposure: exposureLoggingEnabled && request.method === 'GET',
+		});
 		const serviceResponse = {
 			decisions,
 			diagnostics: {
@@ -47,6 +52,19 @@ export async function handleDecisionRequest(
 				durationMs: serviceResponse.diagnostics.evaluationDurationMs,
 			}),
 		);
+		if (exposureLoggingEnabled && request.method === 'GET') {
+			scheduleBackgroundTask(
+				snapshot.client.flush().catch((error) => {
+					console.error(
+						JSON.stringify({
+							event: 'statsig_exposure_flush_error',
+							applicationId: env.APP_ID,
+							errorType: error instanceof Error ? error.name : 'UnknownError',
+						}),
+					);
+				}),
+			);
+		}
 		return new Response(request.method === 'HEAD' ? null : body, {
 			headers: {
 				'Cache-Control': `public, max-age=${positiveNumberSetting(env.DECISIONS_TTL_SECONDS, 60)}, stale-while-revalidate=${positiveNumberSetting(env.DECISIONS_STALE_SECONDS, 300)}`,

@@ -42,7 +42,30 @@ describe('config specs repository', () => {
 		expect(snapshot.time).toBe(String(configSpecsFixture.time));
 		expect(snapshot).not.toHaveProperty('rawJson');
 		expect(bootstrap?.feature_gates.reference_gate?.value).toBe(true);
+		expect(snapshot.client.getContext().options).toMatchObject({
+			loggingEnabled: 'disabled',
+			networkConfig: { preventAllNetworkTraffic: true },
+		});
 		expect((await repository.get()).client).toBe(snapshot.client);
+	});
+
+	it('enables event delivery without blocking Statsig network traffic when exposure logging is enabled', async () => {
+		const cache = new MemoryConfigSpecsCache();
+		cache.value = cachedConfigSpecs();
+		const repository = new ConfigSpecsRepository(
+			'secret-test-exposures',
+			cache,
+			async () => {
+				throw new Error('cache miss was not expected');
+			},
+			60,
+			true,
+		);
+
+		const options = (await repository.get()).client.getContext().options;
+
+		expect(options.loggingEnabled).toBe('always');
+		expect(options.networkConfig?.preventAllNetworkTraffic).not.toBe(true);
 	});
 
 	it('uses the cached absolute expiry instead of extending TTL when installing a snapshot', async () => {

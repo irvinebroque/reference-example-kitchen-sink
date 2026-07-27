@@ -99,7 +99,7 @@ describe('feature gateway', () => {
 		expect(observedProps).toEqual({
 			targetingUser: {
 				userID: 'demo:user',
-				email: 'user@example.com',
+				privateAttributes: { email: 'user@example.com' },
 				customIDs: { applicationID: 'reference-app' },
 				custom: {
 					applicationId: 'reference-app',

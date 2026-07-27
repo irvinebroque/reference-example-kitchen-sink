@@ -81,7 +81,10 @@ describe(`feature service contracts (${__ZOD_COMPILER_MODE__})`, () => {
 		expect(
 			targetingUserSchema.parse({
 				userID: 'demo:user',
-				email: 'user@example.com',
+				privateAttributes: {
+					email: 'user@example.com',
+					ignored: 'private',
+				},
 				customIDs: { applicationID: 'reference-app' },
 				custom: {
 					applicationId: 'reference-app',
@@ -95,7 +98,7 @@ describe(`feature service contracts (${__ZOD_COMPILER_MODE__})`, () => {
 			}),
 		).toEqual({
 			userID: 'demo:user',
-			email: 'user@example.com',
+			privateAttributes: { email: 'user@example.com' },
 			customIDs: { applicationID: 'reference-app' },
 			custom: {
 				applicationId: 'reference-app',
@@ -157,7 +160,7 @@ describe(`feature service contracts (${__ZOD_COMPILER_MODE__})`, () => {
 		expect(
 			targetingUserSchema.safeParse({
 				userID: '',
-				email: 'not-email',
+				privateAttributes: { email: 'not-email' },
 				custom: {
 					unsupported: ['valid', 42],
 				},

@@ -80,6 +80,25 @@ appear in every decision. See the
 [feature-service cache behavior](./docs/architecture/feature-service.md#cache-behavior)
 for the exact freshness and stale-response rules.
 
+## Statsig exposure reporting
+
+The Statsig Worker reports the automatic `reference_gate` exposure only when
+`STATSIG_EXPOSURE_LOGGING_ENABLED` is exactly `true`. Production and staging
+enable it; local development explicitly disables it.
+
+An exposure is attempted asynchronously after a successful GET evaluation on a
+Workers Cache miss. Cache hits bypass the decision entrypoint, so they are not
+additional exposures. HEAD requests and the currently unused `welcome_config`
+do not generate exposures.
+
+Exposure delivery is best-effort and never delays or changes a successful
+decision response. Exposure counts therefore represent evaluated gate
+decisions, not page views or confirmed feature use. Record actual use with a
+separate product event.
+
+Normalized email is available to Statsig targeting under `privateAttributes`
+and is removed by the SDK before exposure events are sent.
+
 ## Experimental requirement
 
 The workerd Memory Cache binding used by the Statsig Worker is experimental.

@@ -26,6 +26,7 @@ function getConfigSpecsRepository(env: StatsigEnv): ConfigSpecsRepository {
 			return response.text();
 		},
 		positiveNumberSetting(env.CONFIG_SPECS_TTL_SECONDS, 300),
+		env.STATSIG_EXPOSURE_LOGGING_ENABLED === 'true',
 	);
 	return configSpecsRepository;
 }
@@ -38,7 +39,13 @@ export class FeatureGatewayEntrypoint extends WorkerEntrypoint<StatsigEnv> {
 
 export class DecisionCacheEntrypoint extends WorkerEntrypoint<StatsigEnv, DecisionCacheProps> {
 	fetch(request: Request): Promise<Response> {
-		return handleDecisionRequest(request, this.env, getConfigSpecsRepository(this.env), this.ctx.props);
+		return handleDecisionRequest(
+			request,
+			this.env,
+			getConfigSpecsRepository(this.env),
+			this.ctx.props,
+			(promise) => this.ctx.waitUntil(promise),
+		);
 	}
 }
 
