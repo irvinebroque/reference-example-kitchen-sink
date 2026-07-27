@@ -47,6 +47,7 @@ describe('decision handler', () => {
 	it('evaluates targeting-user props for GET, emits cache headers, and schedules exactly one flush', async () => {
 		vi.spyOn(console, 'log').mockImplementation(() => undefined);
 		const client = createStatsigServerClient();
+		const getDynamicConfig = vi.spyOn(client, 'getDynamicConfig');
 		const flush = vi.spyOn(client, 'flush').mockResolvedValue();
 		const scheduleBackgroundTask = vi.fn();
 		const response = await handleDecisionRequest(
@@ -70,6 +71,7 @@ describe('decision handler', () => {
 			},
 		});
 		expect(flush).toHaveBeenCalledTimes(1);
+		expect(getDynamicConfig).toHaveBeenCalledWith('welcome_config', user, { disableExposureLog: false });
 		expect(scheduleBackgroundTask).toHaveBeenCalledTimes(1);
 		expect(scheduleBackgroundTask).toHaveBeenCalledWith(expect.any(Promise));
 	});
@@ -102,6 +104,7 @@ describe('decision handler', () => {
 		vi.spyOn(console, 'log').mockImplementation(() => undefined);
 		const client = createStatsigServerClient();
 		const checkGate = vi.spyOn(client, 'checkGate');
+		const getDynamicConfig = vi.spyOn(client, 'getDynamicConfig');
 		const flush = vi.spyOn(client, 'flush').mockResolvedValue();
 		const scheduleBackgroundTask = vi.fn();
 
@@ -115,6 +118,7 @@ describe('decision handler', () => {
 
 		expect(response.status).toBe(200);
 		expect(checkGate).toHaveBeenCalledWith('reference_gate', user, { disableExposureLog: true });
+		expect(getDynamicConfig).toHaveBeenCalledWith('welcome_config', user, { disableExposureLog: true });
 		expect(flush).not.toHaveBeenCalled();
 		expect(scheduleBackgroundTask).not.toHaveBeenCalled();
 	});

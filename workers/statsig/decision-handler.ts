@@ -30,7 +30,7 @@ export async function handleDecisionRequest(
 		const snapshot = await configSpecsRepository.get();
 		const exposureLoggingEnabled = env.STATSIG_EXPOSURE_LOGGING_ENABLED === 'true';
 		const decisions = evaluateApplicationDecisions(snapshot.client, targetingUser, {
-			logGateExposure: exposureLoggingEnabled && request.method === 'GET',
+			logExposures: exposureLoggingEnabled && request.method === 'GET',
 		});
 		const serviceResponse = {
 			decisions,

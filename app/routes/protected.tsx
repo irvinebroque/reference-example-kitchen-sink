@@ -16,12 +16,13 @@ export async function loader({ context }: LoaderFunctionArgs) {
 
 export default function ProtectedRoute() {
 	const data = useLoaderData<typeof loader>();
+	const welcomeMessage = data.features?.decisions.welcomeMessage ?? 'Welcome';
 	return (
 		<div className="page-shell narrow">
 			<section className="page-heading">
 				<div className="heading-copy">
 					<Text variant="heading1" as="h1">
-						Welcome, {data.user.name ?? 'user'}
+						{welcomeMessage}, {data.user.name ?? 'user'}
 					</Text>
 					<Text variant="secondary">This protected page was rendered after one session lookup and one feature service binding fetch.</Text>
 				</div>
