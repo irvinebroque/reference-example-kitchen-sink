@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { DecisionCacheProps } from '../../workers/statsig/decision-handler';
-import { handleGatewayRequest, type DecisionEntrypointFactory } from '../../workers/statsig/gateway-handler';
+import {
+	handleGatewayRequest,
+	type DecisionEntrypointFactory,
+	type GatewayDependencies,
+} from '../../workers/statsig/gateway-handler';
 
 const env = {
 	APP_ID: 'reference-app',
@@ -12,8 +16,23 @@ const okEntrypoint: DecisionEntrypointFactory = () => ({
 	fetch: async () => Response.json({ ok: true }),
 });
 
-function request(body: unknown, init: RequestInit = {}): Request {
-	return new Request('https://feature.internal/v1/decisions', {
+const unusedRepository = {
+	async get() {
+		throw new Error('repository was not expected');
+	},
+};
+
+function dependencies(overrides: Partial<GatewayDependencies> = {}): GatewayDependencies {
+	return {
+		decisionEntrypoint: okEntrypoint,
+		repository: unusedRepository,
+		scheduleBackgroundTask: () => undefined,
+		...overrides,
+	};
+}
+
+function request(body: unknown, init: RequestInit = {}, pathname = '/v1/decisions'): Request {
+	return new Request(`https://feature.internal${pathname}`, {
 		...init,
 		body: JSON.stringify(body),
 		headers: { 'Content-Type': 'application/json', ...init.headers },
@@ -24,14 +43,14 @@ function request(body: unknown, init: RequestInit = {}): Request {
 describe('feature gateway', () => {
 	it('accepts only POST /v1/decisions with JSON', async () => {
 		expect(
-			(await handleGatewayRequest(new Request('https://feature.internal/v1/decisions'), env, okEntrypoint)).status,
+			(await handleGatewayRequest(new Request('https://feature.internal/v1/decisions'), env, dependencies())).status,
 		).toBe(405);
 		expect(
 			(
 				await handleGatewayRequest(
 					new Request('https://feature.internal/other', { method: 'POST' }),
 					env,
-					okEntrypoint,
+					dependencies(),
 				)
 			).status,
 		).toBe(404);
@@ -43,7 +62,7 @@ describe('feature gateway', () => {
 						method: 'POST',
 					}),
 					env,
-					okEntrypoint,
+					dependencies(),
 				)
 			).status,
 		).toBe(415);
@@ -57,10 +76,10 @@ describe('feature gateway', () => {
 				method: 'POST',
 			}),
 			env,
-			okEntrypoint,
+			dependencies(),
 		);
 		expect(malformed.status).toBe(400);
-		expect((await handleGatewayRequest(request({ subject: { id: '' } }), env, okEntrypoint)).status).toBe(400);
+		expect((await handleGatewayRequest(request({ subject: { id: '' } }), env, dependencies())).status).toBe(400);
 	});
 
 	it('passes the normalized subject through cached-entrypoint props with a fixed credential-free request', async () => {
@@ -84,7 +103,7 @@ describe('feature gateway', () => {
 				{ headers: { Authorization: 'Bearer private', Cookie: 'session=private' } },
 			),
 			env,
-			entrypoint,
+			dependencies({ decisionEntrypoint: entrypoint }),
 		);
 
 		expect(calls).toBe(1);
@@ -108,5 +127,120 @@ describe('feature gateway', () => {
 				statsigEnvironment: { tier: 'production' },
 			},
 		});
+	});
+
+	it('accepts only reference_gate_used and logs it with trusted metadata and private email', async () => {
+		const logEvent = vi.fn();
+		const flush = vi.fn().mockResolvedValue(undefined);
+		const scheduleBackgroundTask = vi.fn();
+		const response = await handleGatewayRequest(
+			request(
+				{
+					event: 'reference_gate_used',
+					subject: { id: ' demo:user ', email: ' User@Example.com ' },
+				},
+				{},
+				'/v1/events/reference-gate-used',
+			),
+			{ ...env, STATSIG_PRODUCT_EVENT_LOGGING_ENABLED: 'true' } as StatsigEnv,
+			dependencies({
+				repository: {
+					async get() {
+						return {
+							client: { logEvent, flush },
+							expiresAt: Date.now() + 60_000,
+							stale: false,
+							time: '1725000000000',
+						} as never;
+					},
+				},
+				scheduleBackgroundTask,
+			}),
+		);
+
+		expect(response.status).toBe(202);
+		expect(logEvent).toHaveBeenCalledWith(
+			'reference_gate_used',
+			{
+				userID: 'demo:user',
+				privateAttributes: { email: 'user@example.com' },
+				customIDs: { applicationID: 'reference-app' },
+				custom: {
+					applicationId: 'reference-app',
+					tenantId: 'reference-tenant',
+				},
+				statsigEnvironment: { tier: 'production' },
+			},
+			undefined,
+			{
+				applicationId: 'reference-app',
+				environment: 'production',
+				tenantId: 'reference-tenant',
+			},
+		);
+		expect(flush).toHaveBeenCalledTimes(1);
+		expect(scheduleBackgroundTask).toHaveBeenCalledWith(expect.any(Promise));
+
+		const rejected = await handleGatewayRequest(
+			request(
+				{ event: 'another_event', subject: { id: 'demo:user' } },
+				{},
+				'/v1/events/reference-gate-used',
+			),
+			{ ...env, STATSIG_PRODUCT_EVENT_LOGGING_ENABLED: 'true' } as StatsigEnv,
+			dependencies(),
+		);
+		expect(rejected.status).toBe(400);
+	});
+
+	it('does not load configuration, log, or flush when product-event reporting is disabled', async () => {
+		const get = vi.fn();
+		const scheduleBackgroundTask = vi.fn();
+		const response = await handleGatewayRequest(
+			request(
+				{ event: 'reference_gate_used', subject: { id: 'demo:user' } },
+				{},
+				'/v1/events/reference-gate-used',
+			),
+			{ ...env, STATSIG_PRODUCT_EVENT_LOGGING_ENABLED: 'false' } as StatsigEnv,
+			dependencies({
+				repository: { get },
+				scheduleBackgroundTask,
+			}),
+		);
+
+		expect(response.status).toBe(202);
+		expect(get).not.toHaveBeenCalled();
+		expect(scheduleBackgroundTask).not.toHaveBeenCalled();
+	});
+
+	it('returns 202 without waiting for the scheduled flush to settle', async () => {
+		const neverSettles = new Promise<void>(() => undefined);
+		const flush = vi.fn(() => neverSettles);
+		const scheduleBackgroundTask = vi.fn();
+		const response = await handleGatewayRequest(
+			request(
+				{ event: 'reference_gate_used', subject: { id: 'demo:user' } },
+				{},
+				'/v1/events/reference-gate-used',
+			),
+			{ ...env, STATSIG_PRODUCT_EVENT_LOGGING_ENABLED: 'true' } as StatsigEnv,
+			dependencies({
+				repository: {
+					async get() {
+						return {
+							client: { logEvent: vi.fn(), flush },
+							expiresAt: Date.now() + 60_000,
+							stale: false,
+							time: '1725000000000',
+						} as never;
+					},
+				},
+				scheduleBackgroundTask,
+			}),
+		);
+
+		expect(response.status).toBe(202);
+		expect(scheduleBackgroundTask).toHaveBeenCalledWith(expect.any(Promise));
 	});
 });

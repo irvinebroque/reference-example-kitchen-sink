@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ZodError } from 'zod';
 import {
 	applicationDecisionsSchema,
+	featureServiceEventRequestSchema,
 	featureServiceRequestSchema,
 	featureServiceResponseSchema,
 	featureSubjectSchema,
@@ -61,6 +62,22 @@ describe(`feature service contracts (${__ZOD_COMPILER_MODE__})`, () => {
 		expect(applicationDecisionsSchema.parse({ ...decisions, ignored: 'decisions' })).toEqual(decisions);
 
 		expect(
+			featureServiceEventRequestSchema.parse({
+				event: 'reference_gate_used',
+				metadata: { caller: 'not-accepted' },
+				subject: {
+					id: 'demo:user',
+					ignored: 'subject',
+				},
+			}),
+		).toEqual({
+			event: 'reference_gate_used',
+			subject: {
+				id: 'demo:user',
+			},
+		});
+
+		expect(
 			featureServiceResponseSchema.parse({
 				ignored: 'response',
 				decisions: {
@@ -73,6 +90,21 @@ describe(`feature service contracts (${__ZOD_COMPILER_MODE__})`, () => {
 				},
 			}),
 		).toEqual({ decisions, diagnostics });
+	});
+
+	it('accepts only the reference_gate_used product event', () => {
+		expect(
+			featureServiceEventRequestSchema.safeParse({
+				event: 'reference_gate_used',
+				subject: { id: 'demo:user' },
+			}).success,
+		).toBe(true);
+		expect(
+			featureServiceEventRequestSchema.safeParse({
+				event: 'another_event',
+				subject: { id: 'demo:user' },
+			}).success,
+		).toBe(false);
 	});
 
 	it('strips unknown properties at every provider contract object boundary', () => {

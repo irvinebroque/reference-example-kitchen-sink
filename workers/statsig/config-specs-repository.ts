@@ -1,4 +1,5 @@
 import { StatsigServerlessClient } from '@statsig/serverless-client';
+import { observeStatsigFlushes } from './flush-observer';
 
 const CONFIG_SPECS_CACHE_KEY = 'statsig-config-specs-v1';
 
@@ -33,17 +34,18 @@ function readConfigSpecsTime(rawJson: string): string {
 function createClientFromConfigSpecs(
 	serverSecret: string,
 	rawJson: string,
-	exposureLoggingEnabled: boolean,
+	networkLoggingEnabled: boolean,
 ): StatsigServerlessClient {
 	const client = new StatsigServerlessClient(
 		serverSecret,
-		exposureLoggingEnabled
+		networkLoggingEnabled
 			? { loggingEnabled: 'always' }
 			: {
 					loggingEnabled: 'disabled',
 					networkConfig: { preventAllNetworkTraffic: true },
 				},
 	);
+	observeStatsigFlushes(client);
 	client.dataAdapter.setData(rawJson);
 	const details = client.initializeSync();
 	if (!details.success || details.source !== 'Bootstrap') {
@@ -60,7 +62,7 @@ export class ConfigSpecsRepository {
 		private readonly configSpecsCache: ConfigSpecsCacheBinding,
 		private readonly fetchConfigSpecs: (signal: AbortSignal) => Promise<string>,
 		private readonly ttlSeconds: number,
-		private readonly exposureLoggingEnabled = false,
+		private readonly networkLoggingEnabled = false,
 		private readonly timeoutMs = 8_000,
 	) {}
 
@@ -98,7 +100,7 @@ export class ConfigSpecsRepository {
 		const client =
 			this.lastKnownGood?.time === time
 				? this.lastKnownGood.client
-				: createClientFromConfigSpecs(this.serverSecret, cached.rawJson, this.exposureLoggingEnabled);
+				: createClientFromConfigSpecs(this.serverSecret, cached.rawJson, this.networkLoggingEnabled);
 		const snapshot = {
 			time,
 			client,

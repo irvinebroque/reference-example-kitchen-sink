@@ -7,9 +7,10 @@ application-level feature decisions.
 The app does not load the Statsig SDK, know the Statsig server secret, or manage
 the service's internal cache entrypoint.
 
-## App-facing request
+## App-facing requests
 
-The app calls the service through the `FEATURE_SERVICE` Service Binding:
+The app calls the service through the `FEATURE_SERVICE` Service Binding. Feature
+decisions use:
 
 ```ts
 FEATURE_SERVICE.fetch(
@@ -39,6 +40,24 @@ The gateway accepts this shape:
 It returns application decisions and diagnostics. The application contract does
 not expose Statsig SDK types.
 
+The same gateway accepts product events at
+`POST /v1/events/reference-gate-used`:
+
+```ts
+{
+  event: "reference_gate_used",
+  subject: {
+    id: string;
+    email?: string;
+  }
+}
+```
+
+No other event name and no caller-provided metadata are accepted. The gateway
+returns `202` after scheduling any enabled Statsig flush. The app reporter
+awaits that acceptance response but catches and sanitizes all failures so event
+reporting cannot fail the feature action.
+
 ## Entrypoints
 
 The Statsig Worker has three entrypoints:
@@ -60,6 +79,9 @@ ctx.exports.DecisionCacheEntrypoint({ props: { targetingUser } }).fetch(
 
 The gateway therefore runs on every request, while a cache hit can return a
 stored decision without running `DecisionCacheEntrypoint` again.
+
+Product events are handled directly by `FeatureGatewayEntrypoint`; they do not
+use Workers Cache, create another entrypoint, or issue an internal request.
 
 ## Why the service uses `fetch()`
 
@@ -151,6 +173,28 @@ Email remains available for targeting under the Statsig user's
 `privateAttributes.email`. The SDK removes `privateAttributes` before sending
 exposure events, so email is not included in exposure payloads.
 
+### Product-event semantics
+
+`STATSIG_PRODUCT_EVENT_LOGGING_ENABLED` controls the
+`reference_gate_used` event independently from gate exposures. Local
+development and production initially set it to `false`; staging sets it to
+`true`. The Statsig client enables network logging when either the exposure flag
+or the product-event flag is enabled.
+
+After validating an enabled event, the gateway creates the trusted Statsig user
+and fixed application, environment, and tenant metadata. It calls
+`client.logEvent()`, passes `client.flush()` to `ctx.waitUntil()`, and returns
+`202` without waiting for network delivery. Disabled reporting still validates
+the request and returns `202`, but does not load configuration, log, or flush.
+
+One SDK observer records `statsig_logs_flushed` with only the batch size and
+records `statsig_flush_network_error` with only the error type. Rejected flush
+promises retain a separate sanitized unexpected-error catch. No observer logs
+event contents or request arguments.
+
+The app has no current feature action that consumes `reference_gate`, so the
+reporter is not attached to page rendering or another fabricated source.
+
 ### Statsig configuration: workerd Memory Cache
 
 The configuration repository downloads Statsig's raw config specs and stores
@@ -217,6 +261,8 @@ TypeScript declaration in `types/statsig-config-specs-cache.d.ts` documents the
 
 - `workers/app/feature-service-client.ts` — app-facing Service Binding client.
 - `workers/statsig/gateway-handler.ts` — request validation and normalization.
+- `workers/app/product-event-client.ts` — best-effort private event reporter.
+- `workers/statsig/flush-observer.ts` — sanitized SDK flush logs.
 - `workers/statsig/decision-handler.ts` — decision evaluation and HTTP caching.
 - `workers/statsig/config-specs-repository.ts` — configuration caching and
   last-known-good behavior.
