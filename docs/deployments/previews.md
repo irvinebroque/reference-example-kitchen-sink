@@ -125,20 +125,15 @@ For a same-repository pull request:
 2. CI verifies that the shared staging Statsig Worker has a deployment.
 3. CI runs type checks, tests, provider-boundary checks, and both Worker builds.
 4. `wrangler preview --name pr-<number>` creates or updates the app Preview.
-5. CI runs `pnpm run smoke:preview-auth` against the immutable Deployment URL
-   when Wrangler provides one. Otherwise it uses the stable Preview URL.
-6. The smoke test checks readiness, callback origins, secure cookies, invalid
-   credentials, and anonymous sign-out without using a valid password.
-7. After the smoke test succeeds, CI creates or updates one pull-request comment
-   containing the stable Preview URL and, when available, the immutable
-   Deployment URL.
-8. A later successful run updates the same stable Preview URL and produces a new
+5. CI creates or updates one pull-request comment containing the stable Preview
+   URL and, when available, the immutable Deployment URL.
+6. A later successful run updates the same stable Preview URL and produces a new
    immutable URL.
-9. Closing or merging the pull request deletes the Preview.
+7. Closing or merging the pull request deletes the Preview.
 
-If a build, deployment, or smoke test fails, the stable Preview URL continues to
-point to the last successful deployment. It does not necessarily represent the
-latest pull-request commit.
+If a build or deployment fails, the stable Preview URL continues to point to the
+last successful deployment. It does not necessarily represent the latest
+pull-request commit.
 
 ## Fork pull requests
 
@@ -157,9 +152,13 @@ Run the same basic lifecycle locally:
 pnpm run check
 pnpm run build
 pnpm exec wrangler preview --name my-branch
-pnpm run smoke:preview-auth -- https://the-preview-or-deployment-url.example
+pnpm run smoke:preview-auth https://the-preview-or-deployment-url.example
 pnpm exec wrangler preview delete --name my-branch --skip-confirmation
 ```
+
+The optional authentication smoke test checks readiness, callback origins,
+secure cookies, invalid credentials, and anonymous sign-out without using a
+valid password.
 
 For branch-specific variables, bindings, or test resources, either update the
 checked-in `previews` block or change that individual Preview in the Cloudflare
