@@ -25,7 +25,12 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run check
+      - name: Run checks
+        env:
+          AUTH_SECRET: ci-test-only-auth-secret-at-least-32-bytes
+          DEMO_USERNAME: demo
+          DEMO_PASSWORD_HASH: pbkdf2_sha256$100000$salt$ac7d652639c389d536170d502b8e1ab2f5408a309d144e1aae216116d3594eb4
+        run: pnpm run check
       - name: Deploy Workers
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
