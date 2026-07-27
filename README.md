@@ -21,7 +21,7 @@ The repository demonstrates:
 - Per-user Statsig decisions cached with Workers Cache.
 - Downloaded Statsig configuration kept in workerd's shared
   [Memory Cache](https://github.com/cloudflare/workerd/blob/main/src/workerd/api/memory-cache.h).
-- Server-side evaluation through `@statsig/serverless-client` 3.33.3.
+- Server-side evaluation through `@statsig/serverless-client` 3.33.3.dfsdfdsf
 
 ## How it works
 
