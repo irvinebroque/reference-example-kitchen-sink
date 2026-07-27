@@ -55,23 +55,17 @@ jobs:
           deployment_url="$(printf '%s' "$json" | jq -r '.deployment.urls[0] // empty')"
           echo "preview_url=$preview_url" >> "$GITHUB_OUTPUT"
           echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"
-      - name: Comment Preview URLs
+      - name: Comment Branch Preview URL
         uses: actions/github-script@v9
         env:
-          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment_url }}
           PREVIEW_URL: ${{ steps.deploy.outputs.preview_url }}
         with:
           script: |
             const marker = '<!-- cloudflare-worker-preview -->';
-            const deployment = process.env.DEPLOYMENT_URL
-              ? `\n- Immutable deployment: ${process.env.DEPLOYMENT_URL}`
-              : '';
             const body = `${marker}
             ### Cloudflare Worker Preview
 
-            - Stable PR Preview: ${process.env.PREVIEW_URL}${deployment}
-
-            New commits update the stable PR Preview URL. The immutable deployment URL, when present, remains pinned to this commit.`;
+            - Branch Preview: ${process.env.PREVIEW_URL}`;
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
             const comments = await github.paginate(github.rest.issues.listComments, {

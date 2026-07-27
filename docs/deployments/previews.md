@@ -10,16 +10,16 @@ Wrangler prerelease.
 
 A pull-request Preview belongs to the app Worker and has two useful URLs:
 
-- The **stable Preview URL** keeps the same address and points to the latest
-  successful deployment for that Preview name.
+- The **Branch Preview URL** keeps the same address and points to the latest
+  successful deployment for that branch.
 - The **immutable Deployment URL** points to one exact build.
 
 Preview variables, secrets, and bindings are separate from production. They are
 not inherited automatically. Reusing a Preview name updates the same Preview
-and preserves its stable URL.
+and preserves its Branch Preview URL.
 
-The workflow uses `pr-<pull-request-number>` as the Preview name. Closing or
-merging the pull request deletes that Preview and its deployments.
+The workflow uses the pull request's head branch as the Preview name. Closing
+or merging the pull request deletes that Preview and its deployments.
 
 ## Staging feature service
 
@@ -124,15 +124,14 @@ For a same-repository pull request:
 1. CI installs dependencies.
 2. CI verifies that the shared staging Statsig Worker has a deployment.
 3. CI runs type checks, tests, provider-boundary checks, and both Worker builds.
-4. `wrangler preview --name pr-<number>` creates or updates the app Preview.
-5. CI creates or updates one pull-request comment containing the stable Preview
-   URL and, when available, the immutable Deployment URL.
-6. A later successful run updates the same stable Preview URL and produces a new
-   immutable URL.
+4. `wrangler preview` creates or updates the app Preview for the head branch.
+5. CI creates or updates one pull-request comment containing the Branch Preview
+   URL.
+6. A later successful run updates the same Branch Preview URL.
 7. Closing or merging the pull request deletes the Preview.
 
-If a build or deployment fails, the stable Preview URL continues to point to the
-last successful deployment. It does not necessarily represent the latest
+If a build or deployment fails, the Branch Preview URL continues to point to
+the last successful deployment. It does not necessarily represent the latest
 pull-request commit.
 
 ## Fork pull requests
