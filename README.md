@@ -190,8 +190,10 @@ The Preview app calls the deployed staging Statsig Worker. A service binding
 from a Preview cannot target another Worker's Preview, so Statsig Worker changes
 must be deployed to staging before the app Preview can use them.
 
-CI tests and builds both Workers, updates the app Preview, runs the authentication
-smoke test, and posts the URLs on the pull request.
+CI first verifies that the shared staging feature service is deployed, then
+tests and builds both Workers, updates the app Preview, runs the authentication
+smoke test, and posts the URLs on the pull request. The staging Worker is
+bootstrapped and maintained by the **Deploy Statsig staging** workflow.
 
 See [Preview deployment workflow](./docs/deployments/previews.md) for one-time
 setup, secrets, CI behavior, manual commands, authentication details, and

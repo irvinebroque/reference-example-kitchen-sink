@@ -31,6 +31,18 @@ jobs:
           node-version: 26.5.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Verify staging feature service
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -o pipefail
+          if ! pnpm exec wrangler deployments list \
+            --name reference-example-kitchen-sink-statsig-staging \
+            --json | jq -e 'length > 0' >/dev/null; then
+            echo "::error::The staging feature service is not deployed. Run the 'Deploy Statsig staging' workflow before creating app Previews."
+            exit 1
+          fi
       - run: pnpm run check
       - run: pnpm run build
       - id: deploy
@@ -41,8 +53,8 @@ jobs:
         run: |
           output="$(pnpm exec wrangler preview --name "$PREVIEW_NAME" --json)"
           printf '%s\n' "$output"
-          preview_url="$(printf '%s' "$output" | jq -er '.preview_url')"
-          deployment_url="$(printf '%s' "$output" | jq -r '.deployment_url // empty')"
+          preview_url="$(printf '%s' "$output" | jq -er '.preview_urls[0]')"
+          deployment_url="$(printf '%s' "$output" | jq -r '.deployment_urls[0] // empty')"
           echo "preview_url=$preview_url" >> "$GITHUB_OUTPUT"
           echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"
       - name: Smoke-test Preview authentication

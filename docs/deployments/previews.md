@@ -58,16 +58,22 @@ request origin and break sign-in callbacks.
 Authenticate Wrangler locally, or create a CI API token that can manage the app
 Worker and its Previews.
 
-### 2. Deploy the staging Statsig Worker
+### 2. Configure and deploy the staging Statsig Worker
 
-Create its required secret before deployment validation:
+Add these repository secrets in GitHub:
 
-```sh
-pnpm exec wrangler secret put STATSIG_SERVER_SECRET \
-  --config wrangler.statsig.jsonc \
-  --env staging
-pnpm run deploy:statsig:staging
-```
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+- `STATSIG_SERVER_SECRET`
+
+Run the **Deploy Statsig staging** workflow once. It builds the generated Vite
+Worker and uses `wrangler deploy --secrets-file` so the Worker and its required
+secret can be created atomically on the first deployment.
+
+After bootstrap, the same workflow runs from `main` whenever the Statsig Worker
+or its deployment configuration changes. Pull requests do not deploy their code
+into this shared Worker because concurrent pull requests would overwrite one
+another.
 
 ### 3. Create the production app Worker
 
@@ -96,14 +102,10 @@ The pinned Wrangler calls the shared Preview configuration `settings`; the beta
 documentation calls it the Preview base configuration. Run
 `preview settings update` again after changing the checked-in `previews` block.
 
-### 5. Configure GitHub Actions
+### 5. Review GitHub Actions
 
-Add these repository secrets:
-
-- `CLOUDFLARE_API_TOKEN`
-- `CLOUDFLARE_ACCOUNT_ID`
-
-The workflow is defined in `.github/workflows/preview.yml`.
+The workflows are defined in `.github/workflows/preview.yml` and
+`.github/workflows/staging.yml`.
 
 ### 6. Protect public Preview URLs
 
@@ -116,18 +118,19 @@ available.
 For a same-repository pull request:
 
 1. CI installs dependencies.
-2. CI runs type checks, tests, provider-boundary checks, and both Worker builds.
-3. `wrangler preview --name pr-<number>` creates or updates the app Preview.
-4. CI runs `pnpm run smoke:preview-auth` against the immutable Deployment URL
+2. CI verifies that the shared staging Statsig Worker has a deployment.
+3. CI runs type checks, tests, provider-boundary checks, and both Worker builds.
+4. `wrangler preview --name pr-<number>` creates or updates the app Preview.
+5. CI runs `pnpm run smoke:preview-auth` against the immutable Deployment URL
    when Wrangler provides one. Otherwise it uses the stable Preview URL.
-5. The smoke test checks readiness, callback origins, secure cookies, invalid
+6. The smoke test checks readiness, callback origins, secure cookies, invalid
    credentials, and anonymous sign-out without using a valid password.
-6. After the smoke test succeeds, CI creates or updates one pull-request comment
+7. After the smoke test succeeds, CI creates or updates one pull-request comment
    containing the stable Preview URL and, when available, the immutable
    Deployment URL.
-7. A later successful run updates the same stable Preview URL and produces a new
+8. A later successful run updates the same stable Preview URL and produces a new
    immutable URL.
-8. Closing or merging the pull request deletes the Preview.
+9. Closing or merging the pull request deletes the Preview.
 
 If a build, deployment, or smoke test fails, the stable Preview URL continues to
 point to the last successful deployment. It does not necessarily represent the
@@ -171,6 +174,12 @@ compare the active Preview settings with `wrangler.jsonc`.
 Confirm the Preview's `FEATURE_SERVICE` binding names
 `reference-example-kitchen-sink-statsig-staging`. Service bindings from a
 Preview target the bound Worker's deployed version, not another Preview.
+
+### Staging feature service is not deployed
+
+Run the **Deploy Statsig staging** GitHub Actions workflow. The Preview workflow
+checks this dependency before running the full test and build suite so a missing
+bootstrap deployment fails with an actionable error.
 
 ### Authentication cookies or callbacks are wrong
 
