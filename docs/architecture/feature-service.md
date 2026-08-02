@@ -193,29 +193,31 @@ event contents or request arguments.
 The app has no current feature action that consumes `reference_gate`, so the
 reporter is not attached to page rendering or another fabricated source.
 
-### Statsig configuration: workerd Memory Cache
+### Statsig configuration: isolate-local memory
 
-The configuration repository downloads Statsig's raw config specs and stores
-them in workerd's
+The configuration repository downloads Statsig's raw config specs and retains
+the initialized client in module scope. `CONFIG_SPECS_CACHE_BACKEND=isolate` is
+the default and needs no additional binding. Each isolate keeps its own copy;
+the copy disappears whenever that isolate is evicted.
+
+If a refresh fails after an isolate has loaded a valid configuration, the
+repository returns that last-known-good snapshot and marks the response as
+stale. A new isolate without a valid snapshot returns an error when its first
+download fails.
+
+The optional `workerd-memory-cache` backend stores the downloaded raw config in
+workerd's
 [Memory Cache](https://github.com/cloudflare/workerd/blob/main/src/workerd/api/memory-cache.h).
-The cache is process-local. Isolates using the same cache ID in one live workerd
-process can reuse the stored configuration.
-
-Memory Cache is not durable storage. A process restart can remove its contents,
-and entries may expire or be evicted. Do not rely on a deployment preserving the
-cache.
-
-Each isolate also retains its most recently initialized Statsig client. If a
-refresh fails after that isolate has loaded a valid configuration, it returns
-that last-known-good snapshot and marks the response as stale. A new isolate
-without a valid snapshot returns an error when both the cache read and refresh
-fail.
+Isolates using the same cache ID in one live workerd process can then reuse the
+configuration and coalesce concurrent misses. Memory Cache is still not durable:
+a process restart can remove entries, and entries may expire or be evicted.
 
 ### When changes become visible
 
 The two caches refresh independently:
 
-- The configuration entry has its own expiration time and may be evicted sooner.
+- The isolate-local configuration has its own expiration time. With the optional
+  Memory Cache backend, its shared entry may also be evicted sooner.
 - Decision responses are fresh for `DECISIONS_TTL_SECONDS` and may be served
   stale while Workers Cache refreshes them for up to
   `DECISIONS_STALE_SECONDS`.
@@ -227,10 +229,11 @@ through every cached decision at one exact moment. This project lets both cache
 layers converge through their normal refresh behavior instead of trying to
 purge them together.
 
-## Experimental Memory Cache binding
+## Optional Memory Cache binding
 
-The deployed Statsig Worker attaches the account-level binding grant that
-injects its `CACHE` binding:
+The default repository configuration does not attach a volatile cache binding.
+To opt a deployment into `CONFIG_SPECS_CACHE_BACKEND=workerd-memory-cache`,
+attach the account-level binding grant that injects `CACHE`:
 
 ```jsonc
 {
@@ -245,15 +248,20 @@ injects its `CACHE` binding:
 }
 ```
 
-Local Vite development uses the Wrangler prerelease built by
-[cloudflare/workers-sdk#14868](https://github.com/cloudflare/workers-sdk/pull/14868),
-and `vite.config.ts` replaces the deployment-only grant with a direct local
-`volatile_cache` binding named `CACHE`. Binding grants are not available in
-local or remote development.
+The Worker fails explicitly if the backend is selected without `CACHE`. It must
+not also upload a direct `volatile_cache` binding when the deployment grant
+injects that binding.
+
+Binding grants are not available in local or remote development. Local coverage
+therefore requires tooling that supports a direct `volatile_cache` binding named
+`CACHE`. The draft
+[cloudflare/workers-sdk#14868](https://github.com/cloudflare/workers-sdk/pull/14868)
+documents the current prerelease configuration; the default local setup does not
+depend on it.
 
 Wrangler does not currently generate a public type for the binding. The narrow
 TypeScript declaration in `types/statsig-config-specs-cache.d.ts` documents the
-`read(key, fallback)` API used by the repository.
+optional `read(key, fallback)` API used by the repository.
 
 ## Relevant files
 
@@ -266,4 +274,4 @@ TypeScript declaration in `types/statsig-config-specs-cache.d.ts` documents the
   last-known-good behavior.
 - `workers/statsig/decision-evaluator.ts` — Statsig gate and dynamic-config
   evaluation.
-- `wrangler.statsig.jsonc` — entrypoint, cache, and Memory Cache configuration.
+- `wrangler.statsig.jsonc` — entrypoint, cache-backend, and Workers Cache configuration.

@@ -84,5 +84,6 @@ contract, keep the new Statsig Worker compatible with the currently deployed app
 until the app deployment succeeds.
 
 Workers Cache is partitioned by Worker version in this repository, so a new
-Statsig Worker deployment starts with a new decision cache. The process-local
-Memory Cache is not durable and should not be used as rollback state.
+Statsig Worker deployment starts with a new decision cache. The default
+isolate-local configuration snapshot is not durable and should not be used as
+rollback state. The optional workerd Memory Cache backend is also not durable.

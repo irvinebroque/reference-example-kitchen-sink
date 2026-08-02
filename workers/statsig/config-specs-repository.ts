@@ -3,6 +3,8 @@ import { observeStatsigFlushes } from './flush-observer';
 
 const CONFIG_SPECS_CACHE_KEY = 'statsig-config-specs-v1';
 
+export type ConfigSpecsCacheBackend = 'isolate' | 'workerd-memory-cache';
+
 export interface ConfigSpecsSnapshot {
 	time: string;
 	client: StatsigServerlessClient;
@@ -17,6 +19,23 @@ export interface CachedConfigSpecs {
 
 export interface ConfigSpecsCacheBinding {
 	read(key: string, fallback: () => Promise<{ value: CachedConfigSpecs; expiration: number }>): Promise<CachedConfigSpecs>;
+}
+
+export function configSpecsCacheBackendSetting(value: string | undefined): ConfigSpecsCacheBackend {
+	if (value === undefined || value === 'isolate') return 'isolate';
+	if (value === 'workerd-memory-cache') return value;
+	throw new TypeError(`Unsupported Statsig config specs cache backend: ${value}`);
+}
+
+export function configSpecsCacheBindingForBackend(
+	backend: ConfigSpecsCacheBackend,
+	binding: ConfigSpecsCacheBinding | undefined,
+): ConfigSpecsCacheBinding | undefined {
+	if (backend === 'isolate') return undefined;
+	if (!binding) {
+		throw new TypeError('The workerd-memory-cache backend requires the CACHE binding');
+	}
+	return binding;
 }
 
 function readConfigSpecsTime(rawJson: string): string {
@@ -59,7 +78,7 @@ export class ConfigSpecsRepository {
 
 	constructor(
 		private readonly serverSecret: string,
-		private readonly configSpecsCache: ConfigSpecsCacheBinding,
+		private readonly configSpecsCache: ConfigSpecsCacheBinding | undefined,
 		private readonly fetchConfigSpecs: (signal: AbortSignal) => Promise<string>,
 		private readonly ttlSeconds: number,
 		private readonly networkLoggingEnabled = false,
@@ -71,7 +90,9 @@ export class ConfigSpecsRepository {
 		if (current && current.expiresAt > Date.now()) return current;
 
 		try {
-			const cached = await this.configSpecsCache.read(CONFIG_SPECS_CACHE_KEY, () => this.fetchFreshConfigSpecs());
+			const cached = this.configSpecsCache
+				? await this.configSpecsCache.read(CONFIG_SPECS_CACHE_KEY, () => this.fetchFreshConfigSpecs())
+				: (await this.fetchFreshConfigSpecs()).value;
 			return this.install(cached);
 		} catch (error) {
 			return this.staleOrThrow(error);

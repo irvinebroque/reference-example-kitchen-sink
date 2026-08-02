@@ -44,7 +44,7 @@
 		"typescript": "^5.5.2",
 		"vite": "8.1.5",
 		"vitest": "^4.1.10",
-		"wrangler": "https://pkg.pr.new/wrangler@14868",
+		"wrangler": "4.118.0",
 		"zod-compiler": "1.18.0"
 	},
 	"dependencies": {

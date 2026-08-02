@@ -1,21 +1,64 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
-import { ConfigSpecsRepository } from './config-specs-repository';
+import {
+	ConfigSpecsRepository,
+	configSpecsCacheBackendSetting,
+	configSpecsCacheBindingForBackend,
+	type ConfigSpecsCacheBackend,
+	type ConfigSpecsCacheBinding,
+} from './config-specs-repository';
 import { handleDecisionRequest, type DecisionCacheProps } from './decision-handler';
 import { handleGatewayRequest } from './gateway-handler';
 import { handleHealthRequest } from './health-handler';
 import { positiveNumberSetting } from './responses';
 
-let configSpecsRepository: ConfigSpecsRepository | undefined;
+interface ConfigSpecsRepositoryState {
+	backend: ConfigSpecsCacheBackend;
+	cache: ConfigSpecsCacheBinding | undefined;
+	serverSecret: string;
+	ttlSeconds: number;
+	networkLoggingEnabled: boolean;
+	repository: ConfigSpecsRepository;
+}
+
+let configSpecsRepositoryState: ConfigSpecsRepositoryState | undefined;
+
+function hasSameRepositorySettings(
+	state: ConfigSpecsRepositoryState,
+	settings: Omit<ConfigSpecsRepositoryState, 'repository'>,
+): boolean {
+	return (
+		state.backend === settings.backend &&
+		state.serverSecret === settings.serverSecret &&
+		state.ttlSeconds === settings.ttlSeconds &&
+		state.networkLoggingEnabled === settings.networkLoggingEnabled
+	);
+}
 
 function getConfigSpecsRepository(env: StatsigEnv): ConfigSpecsRepository {
-	configSpecsRepository ??= new ConfigSpecsRepository(
-		env.STATSIG_SERVER_SECRET,
-		env.CACHE,
+	const backend = configSpecsCacheBackendSetting(env.CONFIG_SPECS_CACHE_BACKEND);
+	const cache = configSpecsCacheBindingForBackend(backend, env.CACHE);
+	const settings = {
+		backend,
+		cache,
+		serverSecret: env.STATSIG_SERVER_SECRET,
+		ttlSeconds: positiveNumberSetting(env.CONFIG_SPECS_TTL_SECONDS, 300),
+		networkLoggingEnabled:
+			env.STATSIG_EXPOSURE_LOGGING_ENABLED === 'true' ||
+			env.STATSIG_PRODUCT_EVENT_LOGGING_ENABLED === 'true',
+	};
+
+	if (configSpecsRepositoryState && hasSameRepositorySettings(configSpecsRepositoryState, settings)) {
+		return configSpecsRepositoryState.repository;
+	}
+
+	const repository = new ConfigSpecsRepository(
+		settings.serverSecret,
+		settings.cache,
 		async (signal) => {
 			const response = await fetch('https://api.statsig.com/v1/download_config_specs', {
 				headers: {
 					Accept: 'application/json',
-					'statsig-api-key': env.STATSIG_SERVER_SECRET,
+					'statsig-api-key': settings.serverSecret,
 				},
 				signal,
 			});
@@ -25,11 +68,11 @@ function getConfigSpecsRepository(env: StatsigEnv): ConfigSpecsRepository {
 			}
 			return response.text();
 		},
-		positiveNumberSetting(env.CONFIG_SPECS_TTL_SECONDS, 300),
-		env.STATSIG_EXPOSURE_LOGGING_ENABLED === 'true' ||
-			env.STATSIG_PRODUCT_EVENT_LOGGING_ENABLED === 'true',
+		settings.ttlSeconds,
+		settings.networkLoggingEnabled,
 	);
-	return configSpecsRepository;
+	configSpecsRepositoryState = { ...settings, repository };
+	return repository;
 }
 
 export class FeatureGatewayEntrypoint extends WorkerEntrypoint<StatsigEnv> {

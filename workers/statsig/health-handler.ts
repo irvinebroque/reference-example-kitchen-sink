@@ -1,4 +1,5 @@
 import { noStoreJson } from './responses';
+import { configSpecsCacheBackendSetting } from './config-specs-repository';
 
 export function handleHealthRequest(request: Request, env: StatsigEnv): Response {
 	if (new URL(request.url).pathname !== '/health') {
@@ -9,7 +10,6 @@ export function handleHealthRequest(request: Request, env: StatsigEnv): Response
 		entrypoint: 'default',
 		evaluatorVersion: env.EVALUATOR_VERSION,
 		evaluationEngine: '@statsig/serverless-client',
-		volatileCache: 'workerd-memory-cache',
-		memoryCacheConfiguration: 'unsafe-volatile-cache-binding',
+		configSpecsCacheBackend: configSpecsCacheBackendSetting(env.CONFIG_SPECS_CACHE_BACKEND),
 	});
 }

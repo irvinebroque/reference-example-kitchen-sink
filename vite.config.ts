@@ -3,7 +3,7 @@ import { reactRouter } from '@react-router/dev/vite';
 import { defineConfig } from 'vite';
 import { compiledZodSchemas } from './zod-compiler.config';
 
-export default defineConfig(({ command }) => ({
+export default defineConfig({
 	optimizeDeps: {
 		include: [
 			'@cloudflare/kumo/components/badge',
@@ -25,28 +25,9 @@ export default defineConfig(({ command }) => ({
 			auxiliaryWorkers: [
 				{
 					configPath: './wrangler.statsig.jsonc',
-					config:
-						command === 'serve'
-							? (workerConfig) => {
-									Object.assign(workerConfig, {
-										unsafe: {
-											bindings: [
-												{
-													name: 'CACHE',
-													type: 'volatile_cache',
-													cache_id: 'volatile-cache-test-34169769',
-													max_keys: 64,
-													max_value_size: 1_024,
-													max_total_value_size: 65_536,
-												},
-											],
-										},
-									});
-								}
-							: undefined,
 				},
 			],
 		}),
 		reactRouter(),
 	],
-}));
+});

@@ -3,6 +3,7 @@ import { handleHealthRequest } from '../../workers/statsig/health-handler';
 
 const env = {
 	EVALUATOR_VERSION: 'test',
+	CONFIG_SPECS_CACHE_BACKEND: 'isolate',
 } as StatsigEnv;
 
 describe('feature evaluator health', () => {
@@ -15,6 +16,7 @@ describe('feature evaluator health', () => {
 			ok: true,
 			entrypoint: 'default',
 			evaluatorVersion: 'test',
+			configSpecsCacheBackend: 'isolate',
 		});
 	});
 
