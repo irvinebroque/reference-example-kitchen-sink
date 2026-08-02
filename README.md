@@ -83,6 +83,24 @@ appear in every decision. See the
 [feature-service cache behavior](./docs/architecture/feature-service.md#cache-behavior)
 for the exact freshness and stale-response rules.
 
+## Statsig project setup
+
+Before starting or deploying the Workers, configure the Statsig project used by
+`STATSIG_SERVER_SECRET` with these application resources:
+
+- A feature gate whose ID is `reference_gate`. The example accepts either gate
+  result; an Everyone rule with a 100% pass split makes the enabled state easy
+  to verify.
+- A dynamic config whose ID is `welcome_config` and whose value contains a
+  string `message`, for example `{ "message": "Hello from Statsig" }`.
+- An active Server Secret Key that can access the deployment's environment.
+
+Create the gate and config before diagnosing a `401` as a bad credential. A new
+Statsig project without downloadable configuration can reject
+`download_config_specs` even when its Server Secret Key is active. Verify that
+the key belongs to the intended project and that both IDs appear in that
+project's configuration before installing the key as a Worker secret.
+
 ## Statsig exposure reporting
 
 The Statsig Worker reports automatic `reference_gate` and `welcome_config`
