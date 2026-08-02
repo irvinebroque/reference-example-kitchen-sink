@@ -4,6 +4,11 @@ Deploy the Statsig Worker before the app Worker. This ensures the production app
 does not start using a feature-service contract that the bound Statsig Worker
 cannot yet satisfy.
 
+Before the first deployment, configure the Statsig project as described in
+[Statsig project setup](../../README.md#statsig-project-setup). The Server Secret
+Key and the required `reference_gate` and `welcome_config` resources must belong
+to the same project.
+
 ## Release order
 
 1. Deploy Statsig Worker changes to the staging environment:
@@ -26,10 +31,15 @@ cannot yet satisfy.
    production secret:
 
    ```sh
+   pnpm run build:statsig
    pnpm exec wrangler secret put STATSIG_SERVER_SECRET \
-     --config wrangler.statsig.jsonc \
-     --env=""
+     --config dist/reference_example_kitchen_sink_statsig/wrangler.json
    ```
+
+   Use the generated configuration so the secret is attached to the same Worker
+   name that the repository deployment script targets. On a new account,
+   Wrangler may create a placeholder Worker; the next step immediately replaces
+   it with the built Worker.
 
 6. Deploy the production Statsig Worker:
 
@@ -84,5 +94,6 @@ contract, keep the new Statsig Worker compatible with the currently deployed app
 until the app deployment succeeds.
 
 Workers Cache is partitioned by Worker version in this repository, so a new
-Statsig Worker deployment starts with a new decision cache. The process-local
-Memory Cache is not durable and should not be used as rollback state.
+Statsig Worker deployment starts with a new decision cache. The default
+isolate-local configuration snapshot is not durable and should not be used as
+rollback state. The optional workerd Memory Cache backend is also not durable.

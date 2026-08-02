@@ -59,7 +59,7 @@ export class ConfigSpecsRepository {
 
 	constructor(
 		private readonly serverSecret: string,
-		private readonly configSpecsCache: ConfigSpecsCacheBinding,
+		private readonly configSpecsCache: ConfigSpecsCacheBinding | undefined,
 		private readonly fetchConfigSpecs: (signal: AbortSignal) => Promise<string>,
 		private readonly ttlSeconds: number,
 		private readonly networkLoggingEnabled = false,
@@ -71,7 +71,9 @@ export class ConfigSpecsRepository {
 		if (current && current.expiresAt > Date.now()) return current;
 
 		try {
-			const cached = await this.configSpecsCache.read(CONFIG_SPECS_CACHE_KEY, () => this.fetchFreshConfigSpecs());
+			const cached = this.configSpecsCache
+				? await this.configSpecsCache.read(CONFIG_SPECS_CACHE_KEY, () => this.fetchFreshConfigSpecs())
+				: (await this.fetchFreshConfigSpecs()).value;
 			return this.install(cached);
 		} catch (error) {
 			return this.staleOrThrow(error);

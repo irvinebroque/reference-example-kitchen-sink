@@ -38,14 +38,6 @@
 	"secrets": {
 		"required": ["STATSIG_SERVER_SECRET"],
 	},
-	"unsafe": {
-		"bindings": [
-			{
-				"name": "volatile-cache-test",
-				"type": "internal_capability_grants",
-			},
-		],
-	},
 	"env": {
 		"staging": {
 			"name": "reference-example-kitchen-sink-statsig-staging",
@@ -62,14 +54,6 @@
 			},
 			"secrets": {
 				"required": ["STATSIG_SERVER_SECRET"],
-			},
-			"unsafe": {
-				"bindings": [
-					{
-						"name": "volatile-cache-test",
-						"type": "internal_capability_grants",
-					},
-				],
 			},
 		},
 	},

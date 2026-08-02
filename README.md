@@ -19,8 +19,8 @@ The repository demonstrates:
 - A typed, best-effort product-event reporting path through the same private
   service.
 - Per-user Statsig decisions cached with Workers Cache.
-- Downloaded Statsig configuration kept in workerd's shared
-  [Memory Cache](https://github.com/cloudflare/workerd/blob/main/src/workerd/api/memory-cache.h).
+- Downloaded Statsig configuration retained in isolate-local memory, with an
+  optional workerd Memory Cache backend.
 - Server-side evaluation through `@statsig/serverless-client` 3.33.3.
 
 ## How it works
@@ -31,7 +31,7 @@ flowchart LR
     App -->|"signed-in user"| Gateway["Statsig Worker\nrequest validation"]
     Gateway --> Decisions["Workers Cache\nper-user decisions"]
     Decisions --> Evaluator["Statsig evaluation"]
-    Evaluator --> Config["workerd Memory Cache\nStatsig configuration"]
+    Evaluator --> Config["Isolate-local memory\nStatsig configuration"]
     Config -->|"refresh when needed"| Statsig["Statsig API"]
     Evaluator --> App
 ```
@@ -67,20 +67,39 @@ The Statsig Worker uses two caches for different jobs:
 | Cache | Stores | Purpose |
 | --- | --- | --- |
 | Workers Cache | A Statsig decision for one user | Avoids repeating the same evaluation while the decision is fresh |
-| workerd Memory Cache | Downloaded Statsig configuration | Allows isolates using the same cache in one workerd process to reuse the configuration |
+| Isolate-local memory | Downloaded Statsig configuration | Reuses the configuration for the lifetime of one Worker isolate |
 
 `ctx.props` is part of the Workers Cache key, so different users receive
 separate cached decisions. User IDs and email addresses are not placed in the
 cache URL or structured evaluation logs.
 
-The Memory Cache is process-local and is not durable storage. Its entries may
-expire or be evicted. If a configuration refresh fails, an isolate that already
-has a valid configuration can continue using that last-known-good copy.
+The configuration snapshot is isolate-local and is not durable storage. An
+isolate can disappear at any time, and another isolate may download its own
+copy. If a configuration refresh fails, an isolate that already has a valid
+configuration can continue using that last-known-good copy.
 
 The two caches refresh independently, so a Statsig change may take time to
 appear in every decision. See the
 [feature-service cache behavior](./docs/architecture/feature-service.md#cache-behavior)
 for the exact freshness and stale-response rules.
+
+## Statsig project setup
+
+Before starting or deploying the Workers, configure the Statsig project used by
+`STATSIG_SERVER_SECRET` with these application resources:
+
+- A feature gate whose ID is `reference_gate`. The example accepts either gate
+  result; an Everyone rule with a 100% pass split makes the enabled state easy
+  to verify.
+- A dynamic config whose ID is `welcome_config` and whose value contains a
+  string `message`, for example `{ "message": "Hello from Statsig" }`.
+- An active Server Secret Key that can access the deployment's environment.
+
+Create the gate and config before diagnosing a `401` as a bad credential. A new
+Statsig project without downloadable configuration can reject
+`download_config_specs` even when its Server Secret Key is active. Verify that
+the key belongs to the intended project and that both IDs appear in that
+project's configuration before installing the key as a Worker secret.
 
 ## Statsig exposure reporting
 
@@ -125,22 +144,44 @@ The application currently has no genuine action that uses `reference_gate`, so
 the reporter is intentionally not connected to a page view or synthetic
 interaction. Add the call to the real feature action when one exists.
 
-## Experimental Memory Cache requirement
+## Configuration cache backends
 
-The workerd Memory Cache binding used by the Statsig Worker is experimental.
-Local development therefore uses the Wrangler prerelease built from
-[cloudflare/workers-sdk#14868](https://github.com/cloudflare/workers-sdk/pull/14868).
-The package override in `package.json` also makes the Cloudflare Vite plugin use
-that PR's Miniflare build.
+The optional `CACHE` binding selects how downloaded Statsig configuration is
+retained. The repository does not attach that binding by default, so production,
+staging, and local development use isolate-local memory without experimental
+tooling.
 
-Deployed Workers attach the account-level `volatile-cache-test` binding grant.
-That grant injects the `CACHE` binding; the Worker must not also upload a direct
-`volatile_cache` binding. During `vite` development, `vite.config.ts` replaces
-the deployment-only grant with a local `volatile_cache` binding.
+When `CACHE` is present, the same code uses workerd's experimental shared
+[Memory Cache](https://github.com/cloudflare/workerd/blob/main/src/workerd/api/memory-cache.h).
+This backend can reuse configuration and coalesce cache misses across isolates
+in one live workerd process.
 
-The binding is not yet part of Wrangler's public schema or generated types, so
-`types/statsig-config-specs-cache.d.ts` provides its small
-`read(key, fallback)` TypeScript contract.
+To opt a deployment in when the account-level capability is available:
+
+1. Attach the account-level grant that injects `CACHE`:
+
+   ```jsonc
+   "unsafe": {
+     "bindings": [
+       {
+         "name": "volatile-cache-test",
+         "type": "internal_capability_grants"
+       }
+     ]
+   }
+   ```
+
+2. Use tooling that supports a direct local `volatile_cache` binding when local
+   coverage of that backend is required. The draft
+   [cloudflare/workers-sdk#14868](https://github.com/cloudflare/workers-sdk/pull/14868)
+   documents the current prerelease configuration.
+
+The presence of `CACHE` is the complete configuration switch; no second mode
+variable can drift out of sync with the binding. The Worker must not upload a
+direct `volatile_cache` binding when the deployment grant already injects
+`CACHE`. The binding is not part of Wrangler's public schema or generated types,
+so `types/statsig-config-specs-cache.d.ts` retains its narrow optional
+`read(key, fallback)` contract.
 
 ## Authentication
 

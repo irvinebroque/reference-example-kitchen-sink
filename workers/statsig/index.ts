@@ -5,10 +5,20 @@ import { handleGatewayRequest } from './gateway-handler';
 import { handleHealthRequest } from './health-handler';
 import { positiveNumberSetting } from './responses';
 
-let configSpecsRepository: ConfigSpecsRepository | undefined;
+interface ConfigSpecsRepositoryState {
+	usesMemoryCache: boolean;
+	repository: ConfigSpecsRepository;
+}
+
+let configSpecsRepositoryState: ConfigSpecsRepositoryState | undefined;
 
 function getConfigSpecsRepository(env: StatsigEnv): ConfigSpecsRepository {
-	configSpecsRepository ??= new ConfigSpecsRepository(
+	const usesMemoryCache = env.CACHE !== undefined;
+	if (configSpecsRepositoryState?.usesMemoryCache === usesMemoryCache) {
+		return configSpecsRepositoryState.repository;
+	}
+
+	const repository = new ConfigSpecsRepository(
 		env.STATSIG_SERVER_SECRET,
 		env.CACHE,
 		async (signal) => {
@@ -29,7 +39,8 @@ function getConfigSpecsRepository(env: StatsigEnv): ConfigSpecsRepository {
 		env.STATSIG_EXPOSURE_LOGGING_ENABLED === 'true' ||
 			env.STATSIG_PRODUCT_EVENT_LOGGING_ENABLED === 'true',
 	);
-	return configSpecsRepository;
+	configSpecsRepositoryState = { usesMemoryCache, repository };
+	return repository;
 }
 
 export class FeatureGatewayEntrypoint extends WorkerEntrypoint<StatsigEnv> {

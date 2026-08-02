@@ -29,6 +29,18 @@ afterEach(() => {
 });
 
 describe('config specs repository', () => {
+	it('downloads once and reuses the isolate-local snapshot while it is fresh', async () => {
+		const fetchConfigSpecs = vi.fn(async () => JSON.stringify(configSpecsFixture));
+		const repository = new ConfigSpecsRepository('secret-test-isolate', undefined, fetchConfigSpecs, 60);
+
+		const initial = await repository.get();
+		const reused = await repository.get();
+
+		expect(fetchConfigSpecs).toHaveBeenCalledTimes(1);
+		expect(reused.client).toBe(initial.client);
+		expect(reused.time).toBe(String(configSpecsFixture.time));
+	});
+
 	it('initializes the official client once and does not retain raw JSON in the snapshot', async () => {
 		const fetchConfigSpecs = async () => {
 			throw new Error('cache miss was not expected');
@@ -109,15 +121,16 @@ describe('config specs repository', () => {
 		expect(refreshed.client).not.toBe(initial.client);
 	});
 
-	it('returns last-known-good data when TTL reload fails', async () => {
+	it('returns isolate-local last-known-good data when a direct TTL reload fails', async () => {
 		let now = 30_000;
 		vi.spyOn(Date, 'now').mockImplementation(() => now);
+		let requests = 0;
 		const fetchConfigSpecs = async () => {
+			requests += 1;
+			if (requests === 1) return JSON.stringify(configSpecsFixture);
 			throw new Error('source unavailable');
 		};
-		const cache = new MemoryConfigSpecsCache();
-		cache.value = cachedConfigSpecs(configSpecsFixture, now + 10);
-		const repository = new ConfigSpecsRepository('secret-test-stale', cache, fetchConfigSpecs, 60);
+		const repository = new ConfigSpecsRepository('secret-test-stale', undefined, fetchConfigSpecs, 0.01);
 		await repository.get();
 
 		now += 11;
@@ -125,5 +138,6 @@ describe('config specs repository', () => {
 
 		expect(stale.stale).toBe(true);
 		expect(stale.time).toBe(String(configSpecsFixture.time));
+		expect(requests).toBe(2);
 	});
 });

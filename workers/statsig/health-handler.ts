@@ -9,7 +9,6 @@ export function handleHealthRequest(request: Request, env: StatsigEnv): Response
 		entrypoint: 'default',
 		evaluatorVersion: env.EVALUATOR_VERSION,
 		evaluationEngine: '@statsig/serverless-client',
-		volatileCache: 'workerd-memory-cache',
-		memoryCacheConfiguration: 'unsafe-volatile-cache-binding',
+		configSpecsCacheBackend: env.CACHE === undefined ? 'isolate' : 'workerd-memory-cache',
 	});
 }
