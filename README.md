@@ -101,6 +101,28 @@ Statsig project without downloadable configuration can reject
 the key belongs to the intended project and that both IDs appear in that
 project's configuration before installing the key as a Worker secret.
 
+### Credential preflight
+
+The Statsig project selector, the gate and config pages, and the API-key page
+must all show the same project. Use a Server Secret Key beginning with
+`secret-`; do not use a Client or Console key for the Statsig Worker. With
+`STATSIG_SERVER_SECRET` loaded into the current shell, verify it before
+deploying:
+
+```sh
+curl --fail-with-body \
+  --request POST https://api.statsig.com/v1/check_gate \
+  --header 'content-type: application/json' \
+  --header "statsig-api-key: ${STATSIG_SERVER_SECRET}" \
+  --data '{"gateName":"reference_gate","user":{"userID":"credential-test"}}'
+```
+
+A configured project returns `200` and a JSON result whose `name` is
+`reference_gate`; the boolean `value` follows the gate rules. If this request
+returns `401`, first confirm that the key and resources are in the selected
+project and wait briefly for a newly saved config to propagate before rotating
+the key.
+
 ## Statsig exposure reporting
 
 The Statsig Worker reports automatic `reference_gate` and `welcome_config`
@@ -216,7 +238,8 @@ Use Node.js 26.5.0 and the repository-pinned pnpm 11 release.
    pnpm install --frozen-lockfile
    ```
 
-2. Create local secrets:
+2. Complete [Statsig project setup](#statsig-project-setup), then create local
+   secrets:
 
    ```sh
    cp .dev.vars.example .dev.vars
