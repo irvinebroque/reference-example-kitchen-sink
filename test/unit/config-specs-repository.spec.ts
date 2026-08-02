@@ -1,8 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	ConfigSpecsRepository,
-	configSpecsCacheBackendSetting,
-	configSpecsCacheBindingForBackend,
 	type CachedConfigSpecs,
 	type ConfigSpecsCacheBinding,
 } from '../../workers/statsig/config-specs-repository';
@@ -31,20 +29,6 @@ afterEach(() => {
 });
 
 describe('config specs repository', () => {
-	it('uses isolate-local state by default and validates the optional Memory Cache binding', () => {
-		const cache = new MemoryConfigSpecsCache();
-
-		expect(configSpecsCacheBackendSetting(undefined)).toBe('isolate');
-		expect(configSpecsCacheBackendSetting('isolate')).toBe('isolate');
-		expect(configSpecsCacheBackendSetting('workerd-memory-cache')).toBe('workerd-memory-cache');
-		expect(configSpecsCacheBindingForBackend('isolate', cache)).toBeUndefined();
-		expect(configSpecsCacheBindingForBackend('workerd-memory-cache', cache)).toBe(cache);
-		expect(() => configSpecsCacheBackendSetting('unknown')).toThrow('Unsupported Statsig config specs cache backend');
-		expect(() => configSpecsCacheBindingForBackend('workerd-memory-cache', undefined)).toThrow(
-			'requires the CACHE binding',
-		);
-	});
-
 	it('downloads once and reuses the isolate-local snapshot while it is fresh', async () => {
 		const fetchConfigSpecs = vi.fn(async () => JSON.stringify(configSpecsFixture));
 		const repository = new ConfigSpecsRepository('secret-test-isolate', undefined, fetchConfigSpecs, 60);

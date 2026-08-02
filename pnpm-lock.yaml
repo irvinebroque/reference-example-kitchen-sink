@@ -4,9 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  '@cloudflare/vite-plugin>miniflare': https://pkg.pr.new/cloudflare/workers-sdk/miniflare@bd9b599
-
 importers:
 
   .:
@@ -1541,12 +1538,6 @@ packages:
     resolution: {integrity: sha512-8/dspSXDshP6nSkCpjKO7BYc2qZoYSXm7iM+QxY7qJyJpAB3onnQSaiu0cvKJlfuMGwULl55hG69FJCcCMXU1Q==}
     engines: {node: '>=22.0.0'}
 
-  miniflare@https://pkg.pr.new/cloudflare/workers-sdk/miniflare@bd9b599:
-    resolution: {integrity: sha512-4QwvJSfV+/Ol9oTS8RMNGBudgJWwJAVJsmoBUPFyQ/9VmQme8+XNfz3P3nQ6rpqQBke7YLluS9q3fZnUbxm9kQ==, tarball: https://pkg.pr.new/cloudflare/workers-sdk/miniflare@bd9b599}
-    version: 4.20260722.0
-    engines: {node: '>=22.0.0'}
-    hasBin: true
-
   motion-dom@12.42.2:
     resolution: {integrity: sha512-5gIMWLp/PycBtJRJWRgjxke5n8dlvkSn2DrYW+tr3XcqAZY1xZh6BJyooJXCM8wdfM7wfMjkBJNLge1CKPUIRA==}
 
@@ -2337,7 +2328,7 @@ snapshots:
   '@cloudflare/vite-plugin@1.47.0(vite@8.1.5(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0))(wrangler@4.118.0)':
     dependencies:
       '@cloudflare/unenv-preset': 2.16.1(unenv@2.0.0-rc.24)(workerd@1.20260722.1)
-      miniflare: https://pkg.pr.new/cloudflare/workers-sdk/miniflare@bd9b599
+      miniflare: 4.20260722.0
       unenv: 2.0.0-rc.24
       vite: 8.1.5(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)
       workerd: 1.20260722.1
@@ -3340,18 +3331,6 @@ snapshots:
       sharp: 0.35.2
       undici: 7.28.0
       workerd: 1.20260730.1
-      ws: 8.21.0
-      youch: 4.1.0-beta.10
-    transitivePeerDependencies:
-      - bufferutil
-      - utf-8-validate
-
-  miniflare@https://pkg.pr.new/cloudflare/workers-sdk/miniflare@bd9b599:
-    dependencies:
-      '@cspotcode/source-map-support': 0.8.1
-      sharp: 0.35.2
-      undici: 7.28.0
-      workerd: 1.20260722.1
       ws: 8.21.0
       youch: 4.1.0-beta.10
     transitivePeerDependencies:

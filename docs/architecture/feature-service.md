@@ -196,17 +196,17 @@ reporter is not attached to page rendering or another fabricated source.
 ### Statsig configuration: isolate-local memory
 
 The configuration repository downloads Statsig's raw config specs and retains
-the initialized client in module scope. `CONFIG_SPECS_CACHE_BACKEND=isolate` is
-the default and needs no additional binding. Each isolate keeps its own copy;
-the copy disappears whenever that isolate is evicted.
+the initialized client in module scope. With no `CACHE` binding, which is the
+default, each isolate keeps its own copy. The copy disappears whenever that
+isolate is evicted.
 
 If a refresh fails after an isolate has loaded a valid configuration, the
 repository returns that last-known-good snapshot and marks the response as
 stale. A new isolate without a valid snapshot returns an error when its first
 download fails.
 
-The optional `workerd-memory-cache` backend stores the downloaded raw config in
-workerd's
+When the optional `CACHE` binding is present, the repository stores the
+downloaded raw config in workerd's
 [Memory Cache](https://github.com/cloudflare/workerd/blob/main/src/workerd/api/memory-cache.h).
 Isolates using the same cache ID in one live workerd process can then reuse the
 configuration and coalesce concurrent misses. Memory Cache is still not durable:
@@ -232,8 +232,8 @@ purge them together.
 ## Optional Memory Cache binding
 
 The default repository configuration does not attach a volatile cache binding.
-To opt a deployment into `CONFIG_SPECS_CACHE_BACKEND=workerd-memory-cache`,
-attach the account-level binding grant that injects `CACHE`:
+To opt a deployment into Memory Cache, attach the account-level binding grant
+that injects `CACHE`:
 
 ```jsonc
 {
@@ -248,9 +248,9 @@ attach the account-level binding grant that injects `CACHE`:
 }
 ```
 
-The Worker fails explicitly if the backend is selected without `CACHE`. It must
-not also upload a direct `volatile_cache` binding when the deployment grant
-injects that binding.
+The repository selects Memory Cache from the presence of `CACHE`; without it,
+the repository uses isolate-local memory. The Worker must not also upload a
+direct `volatile_cache` binding when the deployment grant injects that binding.
 
 Binding grants are not available in local or remote development. Local coverage
 therefore requires tooling that supports a direct `volatile_cache` binding named

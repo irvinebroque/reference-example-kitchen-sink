@@ -128,22 +128,19 @@ interaction. Add the call to the real feature action when one exists.
 
 ## Configuration cache backends
 
-`CONFIG_SPECS_CACHE_BACKEND` selects how downloaded Statsig configuration is
-retained. The repository defaults production, staging, and local development to
-`isolate`, which requires no cache binding or experimental tooling.
+The optional `CACHE` binding selects how downloaded Statsig configuration is
+retained. The repository does not attach that binding by default, so production,
+staging, and local development use isolate-local memory without experimental
+tooling.
 
-The optional `workerd-memory-cache` value preserves support for workerd's
-experimental shared
+When `CACHE` is present, the same code uses workerd's experimental shared
 [Memory Cache](https://github.com/cloudflare/workerd/blob/main/src/workerd/api/memory-cache.h).
 This backend can reuse configuration and coalesce cache misses across isolates
-in one live workerd process. It requires a `CACHE` binding; selecting the
-backend without that binding fails explicitly.
+in one live workerd process.
 
 To opt a deployment in when the account-level capability is available:
 
-1. Change `CONFIG_SPECS_CACHE_BACKEND` to `workerd-memory-cache` for that
-   environment.
-2. Attach the account-level grant that injects `CACHE`:
+1. Attach the account-level grant that injects `CACHE`:
 
    ```jsonc
    "unsafe": {
@@ -156,15 +153,17 @@ To opt a deployment in when the account-level capability is available:
    }
    ```
 
-3. Use tooling that supports a direct local `volatile_cache` binding when local
+2. Use tooling that supports a direct local `volatile_cache` binding when local
    coverage of that backend is required. The draft
    [cloudflare/workers-sdk#14868](https://github.com/cloudflare/workers-sdk/pull/14868)
    documents the current prerelease configuration.
 
-The Worker must not upload a direct `volatile_cache` binding when the deployment
-grant already injects `CACHE`. The binding is not part of Wrangler's public
-schema or generated types, so `types/statsig-config-specs-cache.d.ts` retains
-its narrow optional `read(key, fallback)` contract.
+The presence of `CACHE` is the complete configuration switch; no second mode
+variable can drift out of sync with the binding. The Worker must not upload a
+direct `volatile_cache` binding when the deployment grant already injects
+`CACHE`. The binding is not part of Wrangler's public schema or generated types,
+so `types/statsig-config-specs-cache.d.ts` retains its narrow optional
+`read(key, fallback)` contract.
 
 ## Authentication
 
