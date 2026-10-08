@@ -50,7 +50,7 @@
 	"dependencies": {
 		"@cloudflare/kumo": "^2.8.0",
 		"@statsig/serverless-client": "3.33.3",
-		"next": "16.2.12",
+		"next": "16.3.8",
 		"next-auth": "4.24.15",
 		"react": "19.2.8",
 		"react-dom": "19.2.8",
